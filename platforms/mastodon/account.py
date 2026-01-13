@@ -24,6 +24,8 @@ class MastodonAccount(PlatformAccount):
     supports_polls = True
     supports_lists = True
     supports_direct_messages = True
+    supports_media_attachments = True
+    supports_scheduling = True
 
     def __init__(self, app, index: int, api: Mastodon, me, confpath: str):
         super().__init__(app, index)

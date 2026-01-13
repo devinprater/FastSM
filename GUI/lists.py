@@ -81,12 +81,32 @@ class ListsGui(wx.Dialog):
 			self.view_members.Enable(len(self.lists) > 0)
 
 	def New(self, event):
-		l = NewListGui(self.account)
-		l.Show()
+		l = NewListGui(self.account, on_complete=self.refresh_lists)
+		l.ShowModal()
+		l.Destroy()
 
 	def Edit(self, event):
-		l = NewListGui(self.account, self.lists[self.list.GetSelection()])
-		l.Show()
+		l = NewListGui(self.account, self.lists[self.list.GetSelection()], on_complete=self.refresh_lists)
+		l.ShowModal()
+		l.Destroy()
+
+	def refresh_lists(self):
+		"""Refresh the lists from the API."""
+		self.lists = list(self.account.api.lists())
+		self.list.Clear()
+		self.add_items()
+		# Update button states
+		if len(self.lists) > 0:
+			self.list.SetSelection(0)
+			self.on_list_change(None)
+		else:
+			self.load.Enable(False)
+			if hasattr(self, "edit"):
+				self.edit.Enable(False)
+			if hasattr(self, "remove"):
+				self.remove.Enable(False)
+			if hasattr(self, "view_members"):
+				self.view_members.Enable(False)
 
 	def Remove(self, event):
 		selected_list = self.lists[self.list.GetSelection()]
@@ -102,16 +122,24 @@ class ListsGui(wx.Dialog):
 		v.Show()
 
 	def Load(self, event):
+		import speak
 		if self.user is None:
 			selected_list = self.lists[self.list.GetSelection()]
 			title = getattr(selected_list, 'title', '') or getattr(selected_list, 'name', 'List')
 			misc.list_timeline(self.account, title, selected_list.id)
 		else:
 			selected_list = self.lists[self.list.GetSelection()]
-			if self.add:
-				self.account.api.list_accounts_add(id=selected_list.id, account_ids=[self.user.id])
-			else:
-				self.account.api.list_accounts_delete(id=selected_list.id, account_ids=[self.user.id])
+			list_title = getattr(selected_list, 'title', '') or getattr(selected_list, 'name', 'List')
+			try:
+				if self.add:
+					self.account.api.list_accounts_add(id=selected_list.id, account_ids=[self.user.id])
+					speak.speak(f"Added to {list_title}")
+				else:
+					self.account.api.list_accounts_delete(id=selected_list.id, account_ids=[self.user.id])
+					speak.speak(f"Removed from {list_title}")
+			except Exception as e:
+				speak.speak(f"Failed: {str(e)}")
+				return  # Don't close dialog on error
 		self.Destroy()
 
 	def OnClose(self, event):
@@ -119,9 +147,10 @@ class ListsGui(wx.Dialog):
 
 
 class NewListGui(wx.Dialog):
-	def __init__(self, account, list_obj=None):
+	def __init__(self, account, list_obj=None, on_complete=None):
 		self.account = account
 		self.list_obj = list_obj
+		self.on_complete = on_complete
 		title = "New list"
 		if list_obj is not None:
 			list_title = getattr(list_obj, 'title', '') or getattr(list_obj, 'name', 'List')
@@ -164,21 +193,29 @@ class NewListGui(wx.Dialog):
 		self.panel.Layout()
 
 	def Create(self, event):
+		import speak
 		replies_map = {0: 'none', 1: 'list', 2: 'followed'}
 		replies_policy = replies_map.get(self.replies.GetSelection(), 'list')
 
-		if self.list_obj is None:
-			self.account.api.list_create(
-				title=self.text.GetValue(),
-				replies_policy=replies_policy
-			)
-		else:
-			self.account.api.list_update(
-				id=self.list_obj.id,
-				title=self.text.GetValue(),
-				replies_policy=replies_policy
-			)
-		self.Destroy()
+		try:
+			if self.list_obj is None:
+				self.account.api.list_create(
+					title=self.text.GetValue(),
+					replies_policy=replies_policy
+				)
+				speak.speak("List created")
+			else:
+				self.account.api.list_update(
+					id=self.list_obj.id,
+					title=self.text.GetValue(),
+					replies_policy=replies_policy
+				)
+				speak.speak("List updated")
+			if self.on_complete:
+				self.on_complete()
+			self.EndModal(wx.ID_OK)
+		except Exception as e:
+			speak.speak(f"Failed: {str(e)}")
 
 	def OnClose(self, event):
-		self.Destroy()
+		self.EndModal(wx.ID_CANCEL)

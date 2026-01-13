@@ -26,6 +26,8 @@ class BlueskyAccount(PlatformAccount):
     supports_polls = False
     supports_lists = False  # Bluesky has feeds but not traditional lists
     supports_direct_messages = False  # No DM API
+    supports_media_attachments = False  # TODO: Bluesky uses different upload API
+    supports_scheduling = False  # No scheduling API
 
     def __init__(self, app, index: int, client: Client, profile, confpath: str):
         super().__init__(app, index)

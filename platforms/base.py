@@ -21,6 +21,8 @@ class PlatformAccount(ABC):
     supports_polls: bool = False
     supports_lists: bool = False
     supports_direct_messages: bool = False
+    supports_media_attachments: bool = False
+    supports_scheduling: bool = False
 
     def __init__(self, app, index: int):
         self.app = app
@@ -51,6 +53,8 @@ class PlatformAccount(ABC):
             'lists': self.supports_lists,
             'direct_messages': self.supports_direct_messages,
             'dm': self.supports_direct_messages,
+            'media_attachments': self.supports_media_attachments,
+            'scheduling': self.supports_scheduling,
         }
         return feature_map.get(feature, False)
 

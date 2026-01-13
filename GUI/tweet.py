@@ -1,7 +1,10 @@
 import speak
 import wx
+import wx.adv
 import sound
 import platform
+import datetime
+import os
 from . import poll
 from application import get_app
 
@@ -20,6 +23,8 @@ class TweetGui(wx.Dialog):
 		self.poll_opt2 = None
 		self.poll_opt3 = None
 		self.poll_opt4 = None
+		self.media_attachments = []  # List of {'path': str, 'description': str}
+		self.scheduled_at = None  # For scheduled posts
 		wx.Dialog.__init__(self, None, title=type, size=(350,200))
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
 		self.panel = wx.Panel(self)
@@ -72,10 +77,20 @@ class TweetGui(wx.Dialog):
 				self.visibility.Insert("Unlisted", self.visibility.GetCount())
 				self.visibility.Insert("Followers Only", self.visibility.GetCount())
 				self.visibility.Insert("Direct Message", self.visibility.GetCount())
-				# Set default visibility
-				default_vis = getattr(self.account, 'default_visibility', 'public')
-				vis_map = {'public': 0, 'unlisted': 1, 'private': 2, 'direct': 3}
-				self.visibility.SetSelection(vis_map.get(default_vis, 0))
+				# For replies, use the original post's visibility; otherwise use default
+				if self.type == "reply" and status is not None:
+					orig_vis = getattr(status, 'visibility', None)
+					if orig_vis:
+						vis_map = {'public': 0, 'unlisted': 1, 'private': 2, 'direct': 3}
+						self.visibility.SetSelection(vis_map.get(orig_vis, 0))
+					else:
+						default_vis = getattr(self.account, 'default_visibility', 'public')
+						vis_map = {'public': 0, 'unlisted': 1, 'private': 2, 'direct': 3}
+						self.visibility.SetSelection(vis_map.get(default_vis, 0))
+				else:
+					default_vis = getattr(self.account, 'default_visibility', 'public')
+					vis_map = {'public': 0, 'unlisted': 1, 'private': 2, 'direct': 3}
+					self.visibility.SetSelection(vis_map.get(default_vis, 0))
 				self.main_box.Add(self.visibility, 0, wx.ALL, 10)
 
 			# Content warning / Spoiler text - only show if platform supports it
@@ -83,7 +98,59 @@ class TweetGui(wx.Dialog):
 			if self._platform_supports('content_warning'):
 				self.cw_label = wx.StaticText(self.panel, -1, "Content &Warning (optional)")
 				self.cw_text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_DONTWRAP, size=(800, 30))
+				# For replies, copy the original post's content warning if present
+				if self.type == "reply" and status is not None:
+					orig_cw = getattr(status, 'spoiler_text', None)
+					if orig_cw:
+						self.cw_text.SetValue(orig_cw)
 				self.main_box.Add(self.cw_text, 0, wx.ALL, 10)
+
+			# Media attachments - only show if platform supports it
+			self.media_list = None
+			if self._platform_supports('media_attachments'):
+				self.media_label = wx.StaticText(self.panel, -1, "&Media Attachments")
+				self.media_list = wx.ListBox(self.panel, -1, size=(800, 100))
+				self.main_box.Add(self.media_list, 0, wx.ALL, 10)
+
+				media_btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+				self.add_media_btn = wx.Button(self.panel, -1, "Add &Media")
+				self.add_media_btn.Bind(wx.EVT_BUTTON, self.OnAddMedia)
+				media_btn_sizer.Add(self.add_media_btn, 0, wx.ALL, 5)
+
+				self.remove_media_btn = wx.Button(self.panel, -1, "Remove Media")
+				self.remove_media_btn.Bind(wx.EVT_BUTTON, self.OnRemoveMedia)
+				self.remove_media_btn.Enable(False)
+				media_btn_sizer.Add(self.remove_media_btn, 0, wx.ALL, 5)
+				self.main_box.Add(media_btn_sizer, 0, wx.ALL, 5)
+
+				self.media_list.Bind(wx.EVT_LISTBOX, self.OnMediaSelect)
+
+			# Scheduling - only show if platform supports it
+			self.schedule_checkbox = None
+			if self._platform_supports('scheduling'):
+				self.schedule_checkbox = wx.CheckBox(self.panel, -1, "Sc&hedule post")
+				self.schedule_checkbox.Bind(wx.EVT_CHECKBOX, self.OnScheduleToggle)
+				self.main_box.Add(self.schedule_checkbox, 0, wx.ALL, 10)
+
+				# Date and time controls (initially hidden)
+				self.schedule_panel = wx.Panel(self.panel)
+				schedule_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+				self.schedule_date = wx.adv.DatePickerCtrl(self.schedule_panel, style=wx.adv.DP_DROPDOWN)
+				schedule_sizer.Add(wx.StaticText(self.schedule_panel, -1, "Date:"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+				schedule_sizer.Add(self.schedule_date, 0, wx.ALL, 5)
+
+				self.schedule_hour = wx.SpinCtrl(self.schedule_panel, -1, "12", min=0, max=23, size=(60, -1))
+				schedule_sizer.Add(wx.StaticText(self.schedule_panel, -1, "Hour:"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+				schedule_sizer.Add(self.schedule_hour, 0, wx.ALL, 5)
+
+				self.schedule_minute = wx.SpinCtrl(self.schedule_panel, -1, "0", min=0, max=59, size=(60, -1))
+				schedule_sizer.Add(wx.StaticText(self.schedule_panel, -1, "Min:"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+				schedule_sizer.Add(self.schedule_minute, 0, wx.ALL, 5)
+
+				self.schedule_panel.SetSizer(schedule_sizer)
+				self.schedule_panel.Hide()
+				self.main_box.Add(self.schedule_panel, 0, wx.ALL, 5)
 
 		if platform.system() == "Darwin":
 			self.autocomplete = wx.Button(self.panel, wx.ID_DEFAULT, "User A&utocomplete")
@@ -128,6 +195,67 @@ class TweetGui(wx.Dialog):
 			return self.account.supports_feature(feature)
 		# Default to True for backward compatibility (Mastodon supports most features)
 		return True
+
+	def OnAddMedia(self, event):
+		"""Add a media attachment with alt text."""
+		# Get max attachments from account, default to 4
+		max_attachments = getattr(self.account, 'max_media_attachments', 4)
+		if len(self.media_attachments) >= max_attachments:
+			speak.speak(f"Maximum of {max_attachments} attachments allowed")
+			return
+
+		# Open file picker
+		wildcard = "Image files (*.jpg;*.jpeg;*.png;*.gif;*.webp)|*.jpg;*.jpeg;*.png;*.gif;*.webp|Video files (*.mp4;*.webm;*.mov)|*.mp4;*.webm;*.mov|Audio files (*.mp3;*.ogg;*.wav;*.flac)|*.mp3;*.ogg;*.wav;*.flac|All files (*.*)|*.*"
+		dialog = wx.FileDialog(self, "Select media file", wildcard=wildcard, style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+
+		if dialog.ShowModal() == wx.ID_OK:
+			file_path = dialog.GetPath()
+			dialog.Destroy()
+
+			# Ask for alt text
+			alt_dialog = wx.TextEntryDialog(self, "Enter alt text description (optional):", "Alt Text", "")
+			alt_text = ""
+			if alt_dialog.ShowModal() == wx.ID_OK:
+				alt_text = alt_dialog.GetValue()
+			alt_dialog.Destroy()
+
+			# Add to list
+			filename = os.path.basename(file_path)
+			display_text = filename
+			if alt_text:
+				display_text = f"{filename} - {alt_text[:30]}..."
+			self.media_attachments.append({'path': file_path, 'description': alt_text})
+			self.media_list.Append(display_text)
+			speak.speak(f"Added {filename}")
+		else:
+			dialog.Destroy()
+
+	def OnRemoveMedia(self, event):
+		"""Remove the selected media attachment."""
+		selection = self.media_list.GetSelection()
+		if selection != wx.NOT_FOUND:
+			removed = self.media_attachments.pop(selection)
+			self.media_list.Delete(selection)
+			speak.speak(f"Removed {os.path.basename(removed['path'])}")
+			self.remove_media_btn.Enable(False)
+
+	def OnMediaSelect(self, event):
+		"""Enable/disable remove button based on selection."""
+		self.remove_media_btn.Enable(self.media_list.GetSelection() != wx.NOT_FOUND)
+
+	def OnScheduleToggle(self, event):
+		"""Show/hide scheduling controls."""
+		if self.schedule_checkbox.GetValue():
+			self.schedule_panel.Show()
+			# Set default time to 1 hour from now
+			now = datetime.datetime.now()
+			future = now + datetime.timedelta(hours=1)
+			self.schedule_hour.SetValue(future.hour)
+			self.schedule_minute.SetValue(future.minute)
+		else:
+			self.schedule_panel.Hide()
+		self.panel.Layout()
+		self.Fit()
 
 	def Poll(self, event):
 		if not self._platform_supports('polls'):
@@ -224,6 +352,78 @@ class TweetGui(wx.Dialog):
 			self.maximum()
 		self.SetLabel(self.type + " - " + str(length) + " of " + str(self.max_length) + " characters (" + percent + " Percent)")
 
+	def _upload_media(self):
+		"""Upload media attachments and return list of media IDs."""
+		import time
+		media_ids = []
+		if not self.media_attachments:
+			return media_ids
+
+		for attachment in self.media_attachments:
+			try:
+				filename = os.path.basename(attachment['path'])
+				speak.speak(f"Uploading {filename}...")
+				media = self.account.api.media_post(
+					media_file=attachment['path'],
+					description=attachment['description'] if attachment['description'] else None
+				)
+
+				# Wait for media processing to complete
+				# Media is processed async - url is None until ready
+				max_wait = 60  # Maximum 60 seconds wait
+				waited = 0
+				while media.get('url') is None and waited < max_wait:
+					time.sleep(1)
+					waited += 1
+					# Refresh media status
+					try:
+						media = self.account.api.media(media['id'])
+					except:
+						pass  # Keep using existing media dict
+					if waited % 5 == 0:
+						speak.speak(f"Processing {filename}...")
+
+				if media.get('url') is None and waited >= max_wait:
+					speak.speak(f"Timed out waiting for {filename} to process")
+					return None
+
+				media_ids.append(media['id'])
+			except Exception as e:
+				speak.speak(f"Failed to upload {os.path.basename(attachment['path'])}: {str(e)}")
+				return None  # Return None to indicate failure
+		return media_ids
+
+	def _get_scheduled_time(self):
+		"""Get the scheduled datetime if scheduling is enabled."""
+		if self.schedule_checkbox is None or not self.schedule_checkbox.GetValue():
+			return None
+
+		# Get date from date picker
+		wx_date = self.schedule_date.GetValue()
+		year = wx_date.GetYear()
+		month = wx_date.GetMonth() + 1  # wx months are 0-indexed
+		day = wx_date.GetDay()
+
+		# Get time from spinners
+		hour = self.schedule_hour.GetValue()
+		minute = self.schedule_minute.GetValue()
+
+		# Create local datetime
+		scheduled_local = datetime.datetime(year, month, day, hour, minute)
+
+		# Check if scheduled time is in the future (with some buffer for processing)
+		if scheduled_local <= datetime.datetime.now() + datetime.timedelta(minutes=5):
+			speak.speak("Scheduled time must be at least 5 minutes in the future")
+			return False  # Return False to indicate invalid time
+
+		# Convert to UTC for the API
+		# Get local timezone offset and convert to UTC
+		local_tz = datetime.datetime.now().astimezone().tzinfo
+		scheduled_aware = scheduled_local.replace(tzinfo=local_tz)
+		scheduled_utc = scheduled_aware.astimezone(datetime.timezone.utc)
+
+		return scheduled_utc
+
 	def Tweet(self, event):
 		snd = ""
 		status = False
@@ -239,6 +439,21 @@ class TweetGui(wx.Dialog):
 			spoiler_text = None
 			if self.cw_text is not None and self.cw_text.GetValue().strip():
 				spoiler_text = self.cw_text.GetValue().strip()
+
+			# Upload media attachments if any
+			media_ids = None
+			if self.media_list is not None and self.media_attachments:
+				media_ids = self._upload_media()
+				if media_ids is None:
+					# Upload failed
+					sound.play(self.account, "error")
+					return
+
+			# Get scheduled time if enabled
+			scheduled_at = self._get_scheduled_time()
+			if scheduled_at is False:
+				# Invalid scheduled time
+				return
 
 			self.account.app.prefs.posts_sent += 1
 			try:
@@ -274,7 +489,9 @@ class TweetGui(wx.Dialog):
 							text=self.text.GetValue(),
 							id=reply_to_id,
 							visibility=visibility,
-							spoiler_text=spoiler_text
+							spoiler_text=spoiler_text,
+							media_ids=media_ids,
+							scheduled_at=scheduled_at
 						)
 				else:
 					# Check if poll is set and platform supports it
@@ -289,7 +506,7 @@ class TweetGui(wx.Dialog):
 						if self.poll_opt4 != "" and self.poll_opt4 is not None:
 							opts.append(self.poll_opt4)
 						# Post with poll (Mastodon only)
-						status = self.account.api.make_poll(
+						poll_obj = self.account.api.make_poll(
 							options=opts,
 							expires_in=self.poll_runfor * 60
 						)
@@ -297,13 +514,17 @@ class TweetGui(wx.Dialog):
 							status=self.text.GetValue(),
 							visibility=visibility,
 							spoiler_text=spoiler_text,
-							poll=status
+							poll=poll_obj,
+							media_ids=media_ids,
+							scheduled_at=scheduled_at
 						)
 					else:
 						status = self.account.post(
 							self.text.GetValue(),
 							visibility=visibility,
-							spoiler_text=spoiler_text
+							spoiler_text=spoiler_text,
+							media_ids=media_ids,
+							scheduled_at=scheduled_at
 						)
 				self.account.app.prefs.chars_sent += len(self.text.GetValue())
 			except Exception as error:
