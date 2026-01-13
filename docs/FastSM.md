@@ -4,7 +4,7 @@ Welcome to FastSM!
 
 ## What is FastSM?
 
-FastSM is a fully accessible, easy-to-use, light-weight Mastodon/BlueSky client, based off of the old FastSM App from me and Quin created back in 2021. It works on both Windows and Mac, and is open sourced, allowing anyone to contribute if they so wish!
+FastSM is a fully accessible, easy-to-use, light-weight Mastodon/BlueSky client, based off of the old Quinter App from me and Quin created back in 2021. It works on both Windows and Mac, and is open sourced, allowing anyone to contribute if they so wish!
 
 ## Interfaces
 
