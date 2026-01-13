@@ -8,6 +8,11 @@ from . import chooser, main, tweet, view
 import timeline
 from application import get_app
 from mastodon import MastodonError
+try:
+	from atproto.exceptions import AtProtocolError, InvokeTimeoutError
+except ImportError:
+	AtProtocolError = Exception
+	InvokeTimeoutError = Exception
 
 
 def reply(account, status):
@@ -62,7 +67,7 @@ def follow_user(account, username):
 	try:
 		user = account.follow(username)
 		sound.play(account, "follow")
-	except MastodonError as error:
+	except (MastodonError, AtProtocolError, InvokeTimeoutError) as error:
 		account.app.handle_error(error, "Follow " + username)
 
 
@@ -78,7 +83,7 @@ def unfollow_user(account, username):
 	try:
 		user = account.unfollow(username)
 		sound.play(account, "unfollow")
-	except MastodonError as error:
+	except (MastodonError, AtProtocolError, InvokeTimeoutError) as error:
 		account.app.handle_error(error, "Unfollow " + username)
 
 
@@ -146,7 +151,7 @@ def boost(account, status):
 		account.boost(status.id)
 		account.app.prefs.boosts_sent += 1
 		sound.play(account, "send_boost")
-	except MastodonError as error:
+	except (MastodonError, AtProtocolError, InvokeTimeoutError) as error:
 		account.app.handle_error(error, "boost")
 
 
@@ -155,13 +160,13 @@ def favourite(account, status):
 		if getattr(status, 'favourited', False):
 			account.unfavourite(status.id)
 			status.favourited = False
-			sound.play(account, "unfavourite")
+			sound.play(account, "unlike")
 		else:
 			account.favourite(status.id)
 			account.app.prefs.favourites_sent += 1
 			status.favourited = True
-			sound.play(account, "favourite")
-	except MastodonError as error:
+			sound.play(account, "like")
+	except (MastodonError, AtProtocolError, InvokeTimeoutError) as error:
 		account.app.handle_error(error, "favourite post")
 
 
@@ -189,7 +194,7 @@ def mutual_following(account):
 		mutual = [f for f in following_list if f.id in follower_ids]
 		flw = view.UserViewGui(account, mutual, "Mutual followers")
 		flw.Show()
-	except MastodonError as error:
+	except (MastodonError, AtProtocolError, InvokeTimeoutError) as error:
 		account.app.handle_error(error, "Get mutual followers")
 
 
@@ -202,7 +207,7 @@ def not_following_me(account):
 		not_following = [f for f in following_list if f.id not in follower_ids]
 		flw = view.UserViewGui(account, not_following, "Users not following me")
 		flw.Show()
-	except MastodonError as error:
+	except (MastodonError, AtProtocolError, InvokeTimeoutError) as error:
 		account.app.handle_error(error, "Get users not following me")
 
 
@@ -215,7 +220,7 @@ def not_following(account):
 		not_following = [f for f in followers_list if f.id not in following_ids]
 		flw = view.UserViewGui(account, not_following, "Users I don't follow")
 		flw.Show()
-	except MastodonError as error:
+	except (MastodonError, AtProtocolError, InvokeTimeoutError) as error:
 		account.app.handle_error(error, "Get users I don't follow")
 
 
@@ -273,7 +278,7 @@ def user_search(account, q):
 		users = list(result)
 		u = view.UserViewGui(account, users, "User search for " + q)
 		u.Show()
-	except MastodonError as error:
+	except (MastodonError, AtProtocolError, InvokeTimeoutError) as error:
 		account.app.handle_error(error, "User search")
 
 
@@ -366,7 +371,7 @@ def delete(account, status):
 		main.window.list2.Delete(account.currentTimeline.index)
 		sound.play(account, "delete")
 		main.window.list2.SetSelection(account.currentTimeline.index)
-	except MastodonError as error:
+	except (MastodonError, AtProtocolError, InvokeTimeoutError) as error:
 		account.app.handle_error(error, "Delete post")
 
 
