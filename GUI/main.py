@@ -500,6 +500,12 @@ class MainGui(wx.Frame):
 		m_unfollow = menu.Append(-1, "Unfollow")
 		self.Bind(wx.EVT_MENU, self.OnUnfollow, m_unfollow)
 
+		m_mute = menu.Append(-1, "Mute user")
+		self.Bind(wx.EVT_MENU, self.OnMuteUser, m_mute)
+
+		m_unmute = menu.Append(-1, "Unmute user")
+		self.Bind(wx.EVT_MENU, self.OnUnmuteUser, m_unmute)
+
 		menu.AppendSeparator()
 
 		m_delete = menu.Append(-1, "Delete")
