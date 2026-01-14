@@ -587,7 +587,7 @@ class MainGui(wx.Frame):
 			dlg.Destroy()
 			return
 
-		search_text = dlg.GetString().strip().lower()
+		search_text = dlg.GetValue().strip().lower()
 		dlg.Destroy()
 
 		if not search_text:
