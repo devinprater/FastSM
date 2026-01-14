@@ -4,6 +4,7 @@ alt+shift+]=next_tl
 alt+shift+;=prev_item
 alt+shift+'=next_item
 alt+shift+r=Reply
+alt+shift+e=Edit
 alt+control+shift+r=Boost
 alt+shift+l=Like
 alt+control+shift+d=Message

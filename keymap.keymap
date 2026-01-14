@@ -8,6 +8,7 @@ alt+win+down=next_item
 control+win+pageup=prev_item_jump
 control+win+pagedown=next_item_jump
 control+win+r=Reply
+alt+win+e=Edit
 control+win+shift+r=Boost
 alt+win+k=Like
 alt+win+q=Quote

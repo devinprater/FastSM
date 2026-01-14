@@ -25,6 +25,11 @@ class TweetGui(wx.Dialog):
 		self.poll_opt4 = None
 		self.media_attachments = []  # List of {'path': str, 'description': str}
 		self.scheduled_at = None  # For scheduled posts
+
+		# For edit mode, get the original post text
+		if self.type == "edit" and status is not None:
+			inittext = getattr(status, 'text', self.account.app.strip_html(getattr(status, 'content', '')))
+
 		wx.Dialog.__init__(self, None, title=type, size=(350,200))
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
 		self.panel = wx.Panel(self)
@@ -77,8 +82,8 @@ class TweetGui(wx.Dialog):
 				self.visibility.Insert("Unlisted", self.visibility.GetCount())
 				self.visibility.Insert("Followers Only", self.visibility.GetCount())
 				self.visibility.Insert("Direct Message", self.visibility.GetCount())
-				# For replies, use the original post's visibility; otherwise use default
-				if self.type == "reply" and status is not None:
+				# For replies/edits, use the original post's visibility; otherwise use default
+				if (self.type == "reply" or self.type == "edit") and status is not None:
 					orig_vis = getattr(status, 'visibility', None)
 					if orig_vis:
 						vis_map = {'public': 0, 'unlisted': 1, 'private': 2, 'direct': 3}
@@ -98,8 +103,8 @@ class TweetGui(wx.Dialog):
 			if self._platform_supports('content_warning'):
 				self.cw_label = wx.StaticText(self.panel, -1, "Content &Warning (optional)")
 				self.cw_text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_DONTWRAP, size=(800, 30))
-				# For replies, copy the original post's content warning if present
-				if self.type == "reply" and status is not None:
+				# For replies/edits, copy the original post's content warning if present
+				if (self.type == "reply" or self.type == "edit") and status is not None:
 					orig_cw = getattr(status, 'spoiler_text', None)
 					if orig_cw:
 						self.cw_text.SetValue(orig_cw)
@@ -458,7 +463,16 @@ class TweetGui(wx.Dialog):
 			self.account.app.prefs.posts_sent += 1
 			try:
 				if self.status is not None:
-					if self.type == "quote":
+					if self.type == "edit":
+						# Edit existing post
+						status = self.account.edit(
+							status_id=self.status.id,
+							text=self.text.GetValue(),
+							visibility=visibility,
+							spoiler_text=spoiler_text,
+							media_ids=media_ids
+						)
+					elif self.type == "quote":
 						self.account.app.prefs.quotes_sent += 1
 						status = self.account.quote(self.status, self.text.GetValue(), visibility=visibility)
 					else:
@@ -562,7 +576,7 @@ class TweetGui(wx.Dialog):
 
 		if self.type == "reply" or self.type == "quote":
 			snd = "send_reply"
-		elif self.type == "post":
+		elif self.type == "post" or self.type == "edit":
 			snd = "send_tweet"
 		elif self.type == "message":
 			snd = "send_message"
@@ -575,6 +589,7 @@ class TweetGui(wx.Dialog):
 				self.next_thread()
 		else:
 			sound.play(self.account, "error")
+			speak.speak("Failed to send post")
 
 	def OnClose(self, event):
 		self.Destroy()

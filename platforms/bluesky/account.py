@@ -455,11 +455,20 @@ class BlueskyAccount(PlatformAccount):
 
             # Fetch the created post to return full data
             if hasattr(response, 'uri'):
-                return self.get_status(response.uri)
-            return None
+                result = self.get_status(response.uri)
+                if result:
+                    return result
+                # If get_status failed but we got a response, create a minimal status
+                # to indicate success
+                return response
+            # If no uri in response, still return response as success indicator
+            return response if response else False
         except (AtProtocolError, InvokeTimeoutError) as e:
             self.app.handle_error(e, "post")
-            return None
+            raise  # Re-raise so caller can handle it
+        except Exception as e:
+            self.app.handle_error(e, "post")
+            raise  # Re-raise so caller can handle it
 
     def _build_reply_ref(self, reply_to_uri: str):
         """Build a reply reference for threading."""

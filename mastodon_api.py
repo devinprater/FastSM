@@ -542,6 +542,30 @@ class mastodon(object):
 				original_url = f"{self.prefs.instance_url}/@{status.account.acct}/{status.id}"
 			return self.api.status_post(status=f"{text}\n\n{original_url}", visibility=visibility)
 
+	def edit(self, status_id, text, visibility=None, spoiler_text=None, media_ids=None, **kwargs):
+		"""Edit an existing status"""
+		# Use platform backend if available
+		if hasattr(self, '_platform') and self._platform:
+			return self._platform.edit(
+				status_id=status_id,
+				text=text,
+				visibility=visibility,
+				spoiler_text=spoiler_text,
+				media_ids=media_ids,
+				**kwargs
+			)
+
+		edit_kwargs = {
+			'id': status_id,
+			'status': text,
+		}
+		if spoiler_text:
+			edit_kwargs['spoiler_text'] = spoiler_text
+		if media_ids:
+			edit_kwargs['media_ids'] = media_ids
+
+		return self.api.status_update(**edit_kwargs)
+
 	def favourite(self, id):
 		"""Favourite a status"""
 		# Use platform backend if available

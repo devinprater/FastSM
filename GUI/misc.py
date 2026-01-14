@@ -27,6 +27,15 @@ def quote(account, status):
 	NewPost.Show()
 
 
+def edit(account, status):
+	# Check if editing is supported on the platform
+	if hasattr(account, 'supports_feature') and not account.supports_feature('editing'):
+		speak.speak("Editing posts is not supported on this platform")
+		return
+	NewPost = tweet.TweetGui(account, type="edit", status=status)
+	NewPost.Show()
+
+
 def user_timeline(account, status):
 	u = account.app.get_user_objects_in_status(account, status)
 	u2 = []

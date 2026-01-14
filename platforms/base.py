@@ -23,6 +23,7 @@ class PlatformAccount(ABC):
     supports_direct_messages: bool = False
     supports_media_attachments: bool = False
     supports_scheduling: bool = False
+    supports_editing: bool = False
 
     def __init__(self, app, index: int):
         self.app = app
@@ -55,6 +56,7 @@ class PlatformAccount(ABC):
             'dm': self.supports_direct_messages,
             'media_attachments': self.supports_media_attachments,
             'scheduling': self.supports_scheduling,
+            'editing': self.supports_editing,
         }
         return feature_map.get(feature, False)
 

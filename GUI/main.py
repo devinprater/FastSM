@@ -53,6 +53,8 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnTweet, m_tweet)
 		m_reply = menu2.Append(-1, "Reply\tCtrl+R", "reply")
 		self.Bind(wx.EVT_MENU, self.OnReply, m_reply)
+		m_edit = menu2.Append(-1, "Edit\tCtrl+E", "edit")
+		self.Bind(wx.EVT_MENU, self.OnEdit, m_edit)
 		m_retweet = menu2.Append(-1, "Boost\tCtrl+Shift+R", "boost")
 		self.Bind(wx.EVT_MENU, self.OnRetweet, m_retweet)
 		if platform.system()=="Darwin":
@@ -118,7 +120,7 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnHide, m_hide)
 		m_manage_hide = menu3.Append(-1, "Manage hidden Timelines\tCtrl+Shift+H", "manage_hide")
 		self.Bind(wx.EVT_MENU, self.OnManageHide, m_manage_hide)
-		m_read = menu3.Append(-1, "Toggle autoread\tCtrl+E", "autoread")
+		m_read = menu3.Append(-1, "Toggle autoread\tCtrl+Shift+E", "autoread")
 		self.Bind(wx.EVT_MENU, self.OnRead, m_read)
 		if platform.system()!="Darwin":
 			m_mute = menu3.Append(-1, "Toggle mute\tCtrl+M", "mute")
@@ -634,6 +636,16 @@ class MainGui(wx.Frame):
 			status = self.get_current_status()
 			if status:
 				misc.reply(get_app().currentAccount, status)
+
+	def OnEdit(self, event=None):
+		status = self.get_current_status()
+		if status:
+			# Check if this is our own post
+			if hasattr(status, 'account') and hasattr(get_app().currentAccount, 'me'):
+				if str(status.account.id) != str(get_app().currentAccount.me.id):
+					speak.speak("You can only edit your own posts")
+					return
+			misc.edit(get_app().currentAccount, status)
 
 	def OnQuote(self, event=None):
 		if get_app().currentAccount.currentTimeline.type=="conversations":

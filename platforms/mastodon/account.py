@@ -26,6 +26,7 @@ class MastodonAccount(PlatformAccount):
     supports_direct_messages = True
     supports_media_attachments = True
     supports_scheduling = True
+    supports_editing = True
 
     def __init__(self, app, index: int, api: Mastodon, me, confpath: str):
         super().__init__(app, index)
@@ -381,6 +382,24 @@ class MastodonAccount(PlatformAccount):
                 original_url = f"{self.api.api_base_url}/@{status.account.acct}/{status.id}"
             result = self.api.status_post(status=f"{text}\n\n{original_url}", visibility=visibility)
 
+        return mastodon_status_to_universal(result)
+
+    def edit(self, status_id: str, text: str, visibility: Optional[str] = None,
+             spoiler_text: Optional[str] = None, media_ids: Optional[list] = None,
+             **kwargs) -> UniversalStatus:
+        """Edit an existing status."""
+        edit_kwargs = {
+            'id': status_id,
+            'status': text,
+        }
+
+        if spoiler_text:
+            edit_kwargs['spoiler_text'] = spoiler_text
+
+        if media_ids:
+            edit_kwargs['media_ids'] = media_ids
+
+        result = self.api.status_update(**edit_kwargs)
         return mastodon_status_to_universal(result)
 
     def boost(self, status_id: str) -> bool:
