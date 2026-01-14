@@ -91,26 +91,43 @@ def get_hidden_imports():
 
 
 def get_data_files(script_dir: Path):
-    """Get list of data files to include."""
-    datas = []
+    """Get list of data files to include in the bundle.
 
+    Note: sounds, keymaps, and docs are copied separately to the root
+    of the distribution folder after the build.
+    """
+    datas = []
+    # Most data files are copied manually after build to keep them
+    # at the root level, not inside _internal
+    return datas
+
+
+def copy_data_files(script_dir: Path, dest_dir: Path):
+    """Copy data files to the distribution folder root."""
     # Sounds folder
-    sounds_dir = script_dir / "sounds"
-    if sounds_dir.exists():
-        datas.append((str(sounds_dir), "sounds"))
+    sounds_src = script_dir / "sounds"
+    if sounds_src.exists():
+        sounds_dst = dest_dir / "sounds"
+        print("Copying sounds folder...")
+        if sounds_dst.exists():
+            shutil.rmtree(sounds_dst)
+        shutil.copytree(sounds_src, sounds_dst)
 
     # Keymap files
     for keymap in ["keymap.keymap", "keymac.keymap"]:
-        keymap_path = script_dir / keymap
-        if keymap_path.exists():
-            datas.append((str(keymap_path), "."))
+        keymap_src = script_dir / keymap
+        if keymap_src.exists():
+            print(f"Copying {keymap}...")
+            shutil.copy2(keymap_src, dest_dir / keymap)
 
     # Docs folder
-    docs_dir = script_dir / "docs"
-    if docs_dir.exists():
-        datas.append((str(docs_dir), "docs"))
-
-    return datas
+    docs_src = script_dir / "docs"
+    if docs_src.exists():
+        docs_dst = dest_dir / "docs"
+        print("Copying docs folder...")
+        if docs_dst.exists():
+            shutil.rmtree(docs_dst)
+        shutil.copytree(docs_src, docs_dst)
 
 
 def get_binaries():
@@ -205,6 +222,9 @@ def build_windows(script_dir: Path, output_dir: Path) -> tuple:
     if not app_dir.exists():
         print("Error: Build output not found")
         return False, None
+
+    # Copy data files to root of distribution folder
+    copy_data_files(script_dir, app_dir)
 
     # Create zip file for distribution
     zip_path = create_windows_zip(output_dir, app_dir)
@@ -322,6 +342,11 @@ def build_macos(script_dir: Path, output_dir: Path) -> tuple:
 
         with open(plist_path, 'wb') as f:
             plistlib.dump(plist, f)
+
+    # Copy data files to Resources folder
+    resources_dir = app_path / "Contents" / "Resources"
+    resources_dir.mkdir(parents=True, exist_ok=True)
+    copy_data_files(script_dir, resources_dir)
 
     # Code sign the app
     sign_macos_app(app_path)
