@@ -1,17 +1,45 @@
 import time
 import threading
+import os
+import json
 _start = time.time()
 def _log(msg):
 	print(f"[{time.time() - _start:.2f}s] {msg}")
 
-# Start importing atproto immediately in background (takes ~35s)
-# This gives it a head start while we do other imports
-def _preimport_atproto():
-	try:
-		import atproto
-	except:
-		pass
-threading.Thread(target=_preimport_atproto, daemon=True).start()
+def _has_bluesky_accounts():
+	"""Check if any Bluesky accounts are configured (without loading full config module)."""
+	# Check for portable mode (userdata folder in current directory)
+	userdata_path = os.path.join(os.getcwd(), "userdata")
+	if os.path.isdir(userdata_path):
+		config_base = userdata_path
+		prefix = ""
+	else:
+		# Normal mode - use APPDATA on Windows
+		config_base = os.environ.get("APPDATA", os.path.expanduser("~"))
+		prefix = "FastSM/"
+
+	# Check account0, account1, etc. for bluesky platform_type
+	for i in range(10):  # Check up to 10 accounts
+		config_path = os.path.join(config_base, f"{prefix}account{i}", "config.json")
+		if not os.path.exists(config_path):
+			continue
+		try:
+			with open(config_path, 'r') as f:
+				data = json.load(f)
+				if data.get("platform_type") == "bluesky":
+					return True
+		except:
+			pass
+	return False
+
+# Only pre-import atproto if there are Bluesky accounts (takes ~35s)
+if _has_bluesky_accounts():
+	def _preimport_atproto():
+		try:
+			import atproto
+		except:
+			pass
+	threading.Thread(target=_preimport_atproto, daemon=True).start()
 
 _log("Starting imports...")
 import application
