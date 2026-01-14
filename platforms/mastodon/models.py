@@ -168,6 +168,7 @@ def mastodon_status_to_universal(status, platform_data=None) -> Optional[Univers
         boosts_count=get_attr(status, 'reblogs_count', 0),
         replies_count=get_attr(status, 'replies_count', 0),
         in_reply_to_id=str(get_attr(status, 'in_reply_to_id', '')) if get_attr(status, 'in_reply_to_id') else None,
+        in_reply_to_account_id=str(get_attr(status, 'in_reply_to_account_id', '')) if get_attr(status, 'in_reply_to_account_id') else None,
         reblog=reblog,
         quote=quote,
         media_attachments=media_attachments,

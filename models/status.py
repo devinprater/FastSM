@@ -38,6 +38,7 @@ class UniversalStatus:
     boosts_count: int = 0
     replies_count: int = 0
     in_reply_to_id: Optional[str] = None
+    in_reply_to_account_id: Optional[str] = None
     reblog: Optional['UniversalStatus'] = None
     quote: Optional['UniversalStatus'] = None
     media_attachments: List[UniversalMedia] = field(default_factory=list)

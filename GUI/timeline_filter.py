@@ -4,7 +4,7 @@ import wx
 from application import get_app
 
 
-def should_show_status(status, settings, app=None):
+def should_show_status(status, settings, app=None, _parent_cache=None):
     """Check if a status should be shown based on filter settings.
 
     This is a standalone function so it can be used by both the dialog
@@ -14,6 +14,7 @@ def should_show_status(status, settings, app=None):
         status: The status to check
         settings: Dict with filter settings (original, replies, threads, boosts, quotes, media, no_media)
         app: Application instance for looking up parent posts (optional)
+        _parent_cache: Dict cache for parent lookups (optional, for batch filtering)
 
     Returns:
         True if the status should be shown, False otherwise
@@ -56,17 +57,15 @@ def should_show_status(status, settings, app=None):
         post_author = getattr(post, 'account', None)
         if not post_author:
             return False
-        post_acct = getattr(post_author, 'acct', '') or getattr(post_author, 'id', '')
+        post_author_id = str(getattr(post_author, 'id', ''))
 
-        # Try to find parent post to check author
-        if app and app.currentAccount:
-            parent = app.lookup_status(app.currentAccount, post.in_reply_to_id)
-            if parent:
-                parent_author = getattr(parent, 'account', None)
-                if parent_author:
-                    parent_acct = getattr(parent_author, 'acct', '') or getattr(parent_author, 'id', '')
-                    return post_acct.lower() == parent_acct.lower()
+        # Fast path: use in_reply_to_account_id if available (no API call needed)
+        if hasattr(post, 'in_reply_to_account_id') and post.in_reply_to_account_id is not None:
+            return str(post.in_reply_to_account_id) == post_author_id
 
+        # Fallback: check if we know this is a self-reply from other fields
+        # Don't make API calls for filtering - too slow
+        # If we can't determine, assume it's a reply to others (safer default)
         return False
 
     def is_reply(s):
