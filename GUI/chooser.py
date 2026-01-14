@@ -84,7 +84,55 @@ class ChooseGui(wx.Dialog):
 			except MastodonError as e:
 				self.account.app.handle_error(e,"Unmute")
 		elif self.type==self.TYPE_USER_TIMELINE:
-			misc.user_timeline_user(self.account,self.returnvalue)
+			# Show filter selection dialog for user timelines
+			self._show_filter_dialog(self.returnvalue)
+
+	def _show_filter_dialog(self, username):
+		"""Show a dialog to select filter type for user timelines."""
+		platform_type = getattr(self.account.prefs, 'platform_type', 'mastodon')
+
+		if platform_type == 'bluesky':
+			choices = [
+				"Posts and Replies (default)",
+				"Posts Only",
+				"Media Only",
+				"Threads Only",
+			]
+			filter_values = [
+				None,  # default (posts_with_replies)
+				'posts_no_replies',
+				'posts_with_media',
+				'posts_and_author_threads',
+			]
+		else:
+			# Mastodon filter options
+			choices = [
+				"Posts and Replies (default)",
+				"Posts Only (no replies)",
+				"Media Only",
+				"No Boosts",
+			]
+			filter_values = [
+				None,  # default (posts_with_replies)
+				'posts_no_replies',
+				'posts_with_media',
+				'posts_no_boosts',
+			]
+
+		dlg = wx.SingleChoiceDialog(
+			None,
+			f"Select what to load for {username}'s timeline:",
+			"Timeline Filter",
+			choices
+		)
+		dlg.SetSelection(0)
+
+		if dlg.ShowModal() == wx.ID_OK:
+			selection = dlg.GetSelection()
+			filter_value = filter_values[selection]
+			misc.user_timeline_user(self.account, username, filter=filter_value)
+
+		dlg.Destroy()
 
 	def OnClose(self, event):
 		self.Destroy()

@@ -292,8 +292,11 @@ class Application:
 
 	def strip_html(self, text):
 		"""Strip HTML tags and decode entities"""
-		# Add spaces before/after block elements and links to prevent text concatenation
-		text = re.sub(r'</(a|p|div|br|span)>', ' ', text, flags=re.IGNORECASE)
+		# Add spaces for block elements and line breaks to prevent text concatenation
+		# Note: Don't add spaces for inline elements like <span> - Mastodon uses spans
+		# within URLs (e.g., <span class="invisible">https://</span>) and adding spaces
+		# would break the URL (causing "https:// example.com" instead of "https://example.com")
+		text = re.sub(r'</(p|div)>', ' ', text, flags=re.IGNORECASE)
 		text = re.sub(r'<br\s*/?>', ' ', text, flags=re.IGNORECASE)
 		text = html_tag_re.sub('', text)
 		text = html.unescape(text)
@@ -757,7 +760,11 @@ class Application:
 				if i2.id == id:
 					return i2
 		try:
-			s = account.api.status(id=id)
+			# Use platform-specific status lookup
+			if hasattr(account, '_platform') and account._platform:
+				s = account._platform.get_status(id)
+			else:
+				s = account.api.status(id=id)
 			return s
 		except:
 			return None

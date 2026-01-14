@@ -93,9 +93,20 @@ class timeline(object):
 				self.func = self.account.api.bookmarks
 			self.removable = True
 		elif self.type == "user":
-			if hasattr(self.account, '_platform') and self.account._platform:
+			# Extract user_id and filter from data (data can be string or dict with username/filter)
+			if isinstance(self.data, dict):
+				user_id = self.user.id if self.user else self.data.get('username')
+				user_filter = self.data.get('filter')
+			else:
 				user_id = self.user.id if self.user else self.data
-				self.func = lambda **kwargs: self.account._platform.get_user_statuses(user_id, **kwargs)
+				user_filter = None
+
+			if hasattr(self.account, '_platform') and self.account._platform:
+				# Use default args to capture values at definition time
+				if user_filter:
+					self.func = lambda uid=user_id, uf=user_filter, **kwargs: self.account._platform.get_user_statuses(uid, filter=uf, **kwargs)
+				else:
+					self.func = lambda uid=user_id, **kwargs: self.account._platform.get_user_statuses(uid, **kwargs)
 			else:
 				self.func = lambda **kwargs: self.account.api.account_statuses(id=self.user.id if self.user else self.data, **kwargs)
 		elif self.type == "list":
@@ -145,6 +156,7 @@ class timeline(object):
 				# Store in instance variables to avoid closure issues
 				self._remote_url = self.data.get('url', '') if isinstance(self.data, dict) else ''
 				self._remote_username = self.data.get('username', '') if isinstance(self.data, dict) else ''
+				self._remote_filter = self.data.get('filter') if isinstance(self.data, dict) else None
 				self.func = self._load_remote_user
 			else:
 				self.func = lambda **kwargs: []
@@ -167,6 +179,8 @@ class timeline(object):
 	def _load_remote_user(self, **kwargs):
 		"""Helper to load remote user timeline"""
 		if hasattr(self.account, '_platform') and self.account._platform:
+			if self._remote_filter:
+				return self.account._platform.get_remote_user_timeline(self._remote_url, self._remote_username, filter=self._remote_filter, **kwargs)
 			return self.account._platform.get_remote_user_timeline(self._remote_url, self._remote_username, **kwargs)
 		return []
 
@@ -192,7 +206,27 @@ class timeline(object):
 
 	def load_conversation(self):
 		status = self.status
-		self.process_status(status)
+
+		# Try to use get_status_context for full thread (works better for Bluesky)
+		if hasattr(self.account, '_platform') and self.account._platform:
+			try:
+				context = self.account._platform.get_status_context(status.id)
+				ancestors = context.get('ancestors', [])
+				descendants = context.get('descendants', [])
+
+				# Build thread: ancestors -> current status -> descendants
+				for ancestor in ancestors:
+					self.statuses.append(ancestor)
+				self.statuses.append(status)
+				for descendant in descendants:
+					self.statuses.append(descendant)
+			except Exception:
+				# Fall back to recursive method
+				self.process_status(status)
+		else:
+			# Fall back to recursive method for Mastodon API
+			self.process_status(status)
+
 		if self.app.prefs.reversed:
 			self.statuses.reverse()
 		if self.account.currentTimeline == self:
@@ -408,8 +442,15 @@ class timeline(object):
 					if hasattr(self.account, '_on_timeline_initial_load_complete'):
 						self.account._on_timeline_initial_load_complete()
 				if self.removable:
-					if self.type == "user" and self.data in self.account.prefs.user_timelines:
-						self.account.prefs.user_timelines.remove(self.data)
+					if self.type == "user":
+						# Handle both string and dict data for user timelines
+						if isinstance(self.data, dict):
+							self.account.prefs.user_timelines = [
+								ut for ut in self.account.prefs.user_timelines
+								if not (isinstance(ut, dict) and ut.get('username') == self.data.get('username') and ut.get('filter') == self.data.get('filter'))
+							]
+						elif self.data in self.account.prefs.user_timelines:
+							self.account.prefs.user_timelines.remove(self.data)
 					if self.type == "list":
 						self.account.prefs.list_timelines = [
 							item for item in self.account.prefs.list_timelines
@@ -425,9 +466,10 @@ class timeline(object):
 					if self.type == "remote_user":
 						inst_url = self.data.get('url', '') if isinstance(self.data, dict) else ''
 						username = self.data.get('username', '') if isinstance(self.data, dict) else ''
+						tl_filter = self.data.get('filter') if isinstance(self.data, dict) else None
 						self.account.prefs.remote_user_timelines = [
 							item for item in self.account.prefs.remote_user_timelines
-							if not (item.get('url') == inst_url and item.get('username') == username)
+							if not (item.get('url') == inst_url and item.get('username') == username and item.get('filter') == tl_filter)
 						]
 					self.account.timelines.remove(self)
 					if self.account == self.app.currentAccount:

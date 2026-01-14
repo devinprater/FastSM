@@ -89,13 +89,15 @@ def add_instance_timeline(account, instance_url, focus=True):
     return True
 
 
-def add_remote_user_timeline(account, full_handle, focus=True):
+def add_remote_user_timeline(account, full_handle, focus=True, filter=None, show_filter_dialog=True):
     """Add a remote user timeline (user timeline from a remote instance).
 
     Args:
         account: The account to add the timeline to
         full_handle: Full username like 'user@instance.social' or '@user@instance.social'
         focus: Whether to focus the new timeline
+        filter: Filter type - 'posts_no_replies', 'posts_with_media', 'posts_no_boosts'
+        show_filter_dialog: Whether to show filter dialog (True for interactive, False for restore)
 
     Returns:
         True if successful, False otherwise
@@ -114,25 +116,74 @@ def add_remote_user_timeline(account, full_handle, focus=True):
     # Build instance URL
     instance_url = 'https://' + instance_domain
 
-    # Check if already exists
+    # Check if already exists with same filter
+    timeline_key = f"{username.lower()}@{instance_domain}" if not filter else f"{username.lower()}@{instance_domain}:{filter}"
     for rut in account.prefs.remote_user_timelines:
-        if rut.get('url') == instance_url and rut.get('username', '').lower() == username.lower():
+        existing_key = f"{rut.get('username', '').lower()}@{rut.get('url', '').replace('https://', '')}"
+        if rut.get('filter'):
+            existing_key = f"{existing_key}:{rut.get('filter')}"
+        if existing_key == timeline_key:
             if focus:
                 get_app().alert("This remote user timeline is already open.", "Error")
             return False
 
-    # Create timeline name
+    # Show filter dialog if requested
+    if show_filter_dialog and focus:
+        choices = [
+            "Posts and Replies (default)",
+            "Posts Only (no replies)",
+            "Media Only",
+            "No Boosts",
+        ]
+        filter_values = [
+            None,
+            'posts_no_replies',
+            'posts_with_media',
+            'posts_no_boosts',
+        ]
+
+        dlg = wx.SingleChoiceDialog(
+            None,
+            f"Select what to load for @{username}@{instance_domain}'s timeline:",
+            "Timeline Filter",
+            choices
+        )
+        dlg.SetSelection(0)
+
+        if dlg.ShowModal() == wx.ID_OK:
+            selection = dlg.GetSelection()
+            filter = filter_values[selection]
+        else:
+            dlg.Destroy()
+            return False
+
+        dlg.Destroy()
+
+    # Create timeline name based on filter
+    filter_labels = {
+        'posts_no_replies': 'Posts Only',
+        'posts_with_media': 'Media',
+        'posts_no_boosts': 'No Boosts',
+    }
     tl_name = f"@{username}@{instance_domain}"
+    if filter and filter in filter_labels:
+        tl_name = f"@{username}@{instance_domain}'s {filter_labels[filter]}"
 
     # Add the timeline
-    account.timelines.append(timeline.timeline(account, name=tl_name, type="remote_user", data={'url': instance_url, 'username': username}))
+    data = {'url': instance_url, 'username': username}
+    if filter:
+        data['filter'] = filter
+    account.timelines.append(timeline.timeline(account, name=tl_name, type="remote_user", data=data))
 
     # Save to preferences
-    account.prefs.remote_user_timelines.append({
+    pref_entry = {
         'url': instance_url,
         'username': username,
         'name': tl_name
-    })
+    }
+    if filter:
+        pref_entry['filter'] = filter
+    account.prefs.remote_user_timelines.append(pref_entry)
 
     main.window.refreshTimelines()
     if focus:

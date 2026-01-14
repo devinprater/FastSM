@@ -184,12 +184,28 @@ class mastodon(object):
 		timeline.add(self, "Sent", "user", self.me.acct, self.me)
 
 		# Restore saved timelines (avoid API calls during startup for speed)
-		for username in list(self.prefs.user_timelines):
+		for ut_entry in list(self.prefs.user_timelines):
 			try:
-				# Create timeline without API lookup - user info will be fetched when timeline loads
-				self.timelines.append(timeline.timeline(self, name=username + "'s Timeline", type="user", data=username, user=None, silent=True))
+				# Handle both string and dict entries (dict has username and optional filter)
+				if isinstance(ut_entry, dict):
+					username = ut_entry.get('username', '')
+					user_filter = ut_entry.get('filter')
+					filter_labels = {
+						'posts_no_replies': 'Posts Only',
+						'posts_with_media': 'Media',
+						'posts_and_author_threads': 'Threads',
+						'posts_with_video': 'Videos',
+						'posts_no_boosts': 'No Boosts',
+					}
+					tl_name = username + "'s Timeline"
+					if user_filter and user_filter in filter_labels:
+						tl_name = f"{username}'s {filter_labels[user_filter]}"
+					self.timelines.append(timeline.timeline(self, name=tl_name, type="user", data=ut_entry, user=None, silent=True))
+				else:
+					username = ut_entry
+					self.timelines.append(timeline.timeline(self, name=username + "'s Timeline", type="user", data=username, user=None, silent=True))
 			except:
-				self.prefs.user_timelines.remove(username)
+				self.prefs.user_timelines.remove(ut_entry)
 		for list_data in list(self.prefs.list_timelines):
 			try:
 				if not isinstance(list_data, dict):
@@ -232,9 +248,25 @@ class mastodon(object):
 			try:
 				inst_url = rut.get('url', '')
 				username = rut.get('username', '')
-				rut_name = rut.get('name', f"@{username}@{inst_url.replace('https://', '')}")
+				rut_filter = rut.get('filter')
+				# Build timeline name based on filter
+				filter_labels = {
+					'posts_no_replies': 'Posts Only',
+					'posts_with_media': 'Media',
+					'posts_no_boosts': 'No Boosts',
+				}
+				instance_domain = inst_url.replace('https://', '')
+				rut_name = f"@{username}@{instance_domain}"
+				if rut_filter and rut_filter in filter_labels:
+					rut_name = f"@{username}@{instance_domain}'s {filter_labels[rut_filter]}"
+				# Use saved name if available
+				if rut.get('name'):
+					rut_name = rut.get('name')
 				if inst_url and username:
-					self.timelines.append(timeline.timeline(self, name=rut_name, type="remote_user", data={'url': inst_url, 'username': username}, silent=True))
+					data = {'url': inst_url, 'username': username}
+					if rut_filter:
+						data['filter'] = rut_filter
+					self.timelines.append(timeline.timeline(self, name=rut_name, type="remote_user", data=data, silent=True))
 			except:
 				self.prefs.remote_user_timelines.remove(rut)
 
@@ -298,11 +330,28 @@ class mastodon(object):
 
 		# Restore saved user timelines and searches (no lists for Bluesky)
 		# Avoid API calls during startup for speed
-		for username in list(self.prefs.user_timelines):
+		for ut_entry in list(self.prefs.user_timelines):
 			try:
-				self.timelines.append(timeline.timeline(self, name=username + "'s Timeline", type="user", data=username, user=None, silent=True))
+				# Handle both string and dict entries (dict has username and optional filter)
+				if isinstance(ut_entry, dict):
+					username = ut_entry.get('username', '')
+					user_filter = ut_entry.get('filter')
+					filter_labels = {
+						'posts_no_replies': 'Posts Only',
+						'posts_with_media': 'Media',
+						'posts_and_author_threads': 'Threads',
+						'posts_with_video': 'Videos',
+						'posts_no_boosts': 'No Boosts',
+					}
+					tl_name = username + "'s Timeline"
+					if user_filter and user_filter in filter_labels:
+						tl_name = f"{username}'s {filter_labels[user_filter]}"
+					self.timelines.append(timeline.timeline(self, name=tl_name, type="user", data=ut_entry, user=None, silent=True))
+				else:
+					username = ut_entry
+					self.timelines.append(timeline.timeline(self, name=username + "'s Timeline", type="user", data=username, user=None, silent=True))
 			except:
-				self.prefs.user_timelines.remove(username)
+				self.prefs.user_timelines.remove(ut_entry)
 		for q in list(self.prefs.search_timelines):
 			try:
 				self.timelines.append(timeline.timeline(self, name=q + " Search", type="search", data=q, silent=True))

@@ -134,10 +134,51 @@ class MastodonAccount(PlatformAccount):
             self.user_cache.add_users_from_status(status)
         return result
 
-    def get_user_statuses(self, user_id: str, limit: int = 40, **kwargs) -> List[UniversalStatus]:
-        """Get statuses from a specific user."""
-        statuses = self.api.account_statuses(id=user_id, limit=limit, **kwargs)
-        result = self._convert_statuses(statuses)
+    def get_user_statuses(self, user_id: str, limit: int = 40, filter: str = None, include_pins: bool = True, **kwargs) -> List[UniversalStatus]:
+        """Get statuses from a specific user.
+
+        Args:
+            user_id: The user's ID
+            limit: Maximum number of posts to return
+            filter: Filter type - 'posts_with_replies' (default), 'posts_no_replies',
+                   'posts_with_media', 'posts_no_boosts'
+            include_pins: Whether to include pinned posts at the top (default True)
+        """
+        # Map filter to Mastodon API parameters
+        api_kwargs = dict(kwargs)
+        if filter == 'posts_no_replies':
+            api_kwargs['exclude_replies'] = True
+        elif filter == 'posts_with_media':
+            api_kwargs['only_media'] = True
+        elif filter == 'posts_no_boosts':
+            api_kwargs['exclude_reblogs'] = True
+        # 'posts_with_replies' is the default (no filtering)
+
+        result = []
+
+        # First fetch pinned posts if requested and this is the initial load (no max_id/since_id)
+        if include_pins and 'max_id' not in kwargs and 'since_id' not in kwargs:
+            try:
+                pinned_statuses = self.api.account_statuses(id=user_id, pinned=True, limit=20)
+                pinned_result = self._convert_statuses(pinned_statuses)
+                # Mark pinned posts (could be useful for display)
+                for status in pinned_result:
+                    status._pinned = True
+                result.extend(pinned_result)
+            except:
+                pass  # Pinned posts may not be available for remote users
+
+        # Then fetch regular posts
+        statuses = self.api.account_statuses(id=user_id, limit=limit, **api_kwargs)
+        regular_result = self._convert_statuses(statuses)
+
+        # Remove duplicates (pinned posts may also appear in regular timeline)
+        if result:
+            pinned_ids = {s.id for s in result}
+            regular_result = [s for s in regular_result if s.id not in pinned_ids]
+
+        result.extend(regular_result)
+
         for status in result:
             self.user_cache.add_users_from_status(status)
         return result
@@ -261,13 +302,15 @@ class MastodonAccount(PlatformAccount):
         except Exception:
             return []
 
-    def get_remote_user_timeline(self, instance_url: str, username: str, limit: int = 40, **kwargs) -> List[UniversalStatus]:
+    def get_remote_user_timeline(self, instance_url: str, username: str, limit: int = 40, filter: str = None, include_pins: bool = True, **kwargs) -> List[UniversalStatus]:
         """Fetch a user's timeline from a remote instance.
 
         Args:
             instance_url: The URL of the remote instance
             username: The username on that instance (without @)
             limit: Maximum number of statuses to fetch
+            filter: Filter type - 'posts_no_replies', 'posts_with_media', 'posts_no_boosts'
+            include_pins: Whether to include pinned posts at the top (default True)
             **kwargs: Additional parameters (max_id, since_id, etc.)
 
         Returns:
@@ -301,9 +344,38 @@ class MastodonAccount(PlatformAccount):
             if not remote_user:
                 return []
 
+            # Map filter to Mastodon API parameters
+            api_kwargs = dict(kwargs)
+            if filter == 'posts_no_replies':
+                api_kwargs['exclude_replies'] = True
+            elif filter == 'posts_with_media':
+                api_kwargs['only_media'] = True
+            elif filter == 'posts_no_boosts':
+                api_kwargs['exclude_reblogs'] = True
+
+            result = []
+
+            # First fetch pinned posts if requested and this is the initial load
+            if include_pins and 'max_id' not in kwargs and 'since_id' not in kwargs:
+                try:
+                    pinned_statuses = remote_api.account_statuses(remote_user.id, pinned=True, limit=20)
+                    pinned_result = self._convert_statuses(pinned_statuses)
+                    for status in pinned_result:
+                        status._pinned = True
+                    result.extend(pinned_result)
+                except:
+                    pass  # Pinned posts may not be available
+
             # Get the user's statuses
-            statuses = remote_api.account_statuses(remote_user.id, limit=limit, **kwargs)
-            result = self._convert_statuses(statuses)
+            statuses = remote_api.account_statuses(remote_user.id, limit=limit, **api_kwargs)
+            regular_result = self._convert_statuses(statuses)
+
+            # Remove duplicates (pinned posts may also appear in regular timeline)
+            if result:
+                pinned_ids = {s.id for s in result}
+                regular_result = [s for s in regular_result if s.id not in pinned_ids]
+
+            result.extend(regular_result)
 
             # Extract domain from instance URL for user accts
             from urllib.parse import urlparse

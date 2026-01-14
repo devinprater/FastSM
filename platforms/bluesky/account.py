@@ -220,8 +220,18 @@ class BlueskyAccount(PlatformAccount):
             self.app.handle_error(e, "favourites")
             return []
 
-    def get_user_statuses(self, user_id: str, limit: int = 40, cursor: str = None, max_id: str = None, **kwargs) -> List[UniversalStatus]:
-        """Get statuses from a specific user."""
+    def get_user_statuses(self, user_id: str, limit: int = 40, cursor: str = None, max_id: str = None, filter: str = None, include_pins: bool = True, **kwargs) -> List[UniversalStatus]:
+        """Get statuses from a specific user.
+
+        Args:
+            user_id: The user's DID or handle
+            limit: Maximum number of posts to return (max 100)
+            cursor: Pagination cursor
+            max_id: Signal to load previous (uses stored cursor)
+            filter: Filter type - 'posts_with_replies' (default), 'posts_no_replies',
+                   'posts_with_media', 'posts_and_author_threads', 'posts_with_video'
+            include_pins: Whether to include pinned posts (default True)
+        """
         try:
             # For "load previous", use the stored cursor (keyed by user_id)
             cursor_key = f'user_{user_id}'
@@ -230,12 +240,25 @@ class BlueskyAccount(PlatformAccount):
 
             params = {
                 'actor': user_id,
-                'limit': min(limit, 100)
+                'limit': min(limit, 100),
             }
             if cursor:
                 params['cursor'] = cursor
+            if filter:
+                params['filter'] = filter
 
-            response = self.client.get_author_feed(**params)
+            # Try with include_pins first, fall back without if it fails
+            # (older SDK versions may not support this parameter)
+            if include_pins and not cursor:
+                try:
+                    params['include_pins'] = True
+                    response = self.client.get_author_feed(**params)
+                except Exception:
+                    # Fall back without include_pins
+                    del params['include_pins']
+                    response = self.client.get_author_feed(**params)
+            else:
+                response = self.client.get_author_feed(**params)
 
             # Store cursor for next pagination request
             self._store_cursor(cursor_key, getattr(response, 'cursor', None))
@@ -416,14 +439,22 @@ class BlueskyAccount(PlatformAccount):
                         ancestors.insert(0, status)
                 parent = getattr(parent, 'parent', None)
 
-            # Get replies (descendants)
-            replies = getattr(thread, 'replies', [])
-            for reply in replies:
-                post = getattr(reply, 'post', None)
-                if post:
-                    status = bluesky_post_to_universal(post)
-                    if status:
-                        descendants.append(status)
+            # Get replies (descendants) - recursively to get nested replies
+            def collect_replies(thread_node, depth=0):
+                """Recursively collect all replies from a thread node."""
+                result = []
+                replies = getattr(thread_node, 'replies', []) or []
+                for reply in replies:
+                    post = getattr(reply, 'post', None)
+                    if post:
+                        status = bluesky_post_to_universal(post)
+                        if status:
+                            result.append(status)
+                            # Recursively get nested replies
+                            result.extend(collect_replies(reply, depth + 1))
+                return result
+
+            descendants = collect_replies(thread)
 
             return {'ancestors': ancestors, 'descendants': descendants}
         except (AtProtocolError, InvokeTimeoutError) as e:

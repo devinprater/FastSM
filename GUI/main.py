@@ -606,8 +606,16 @@ class MainGui(wx.Frame):
 				result=dlg.ShowModal()
 				dlg.Destroy()
 			if not get_app().prefs.ask_dismiss or get_app().prefs.ask_dismiss and result== wx.ID_YES:
-				if tl.type=="user" and tl.data in get_app().currentAccount.prefs.user_timelines:
-					get_app().currentAccount.prefs.user_timelines.remove(tl.data)
+				if tl.type=="user":
+					# Handle both string and dict data for user timelines
+					if isinstance(tl.data, dict):
+						# Remove matching dict entry
+						get_app().currentAccount.prefs.user_timelines = [
+							ut for ut in get_app().currentAccount.prefs.user_timelines
+							if not (isinstance(ut, dict) and ut.get('username') == tl.data.get('username') and ut.get('filter') == tl.data.get('filter'))
+						]
+					elif tl.data in get_app().currentAccount.prefs.user_timelines:
+						get_app().currentAccount.prefs.user_timelines.remove(tl.data)
 				if tl.type=="list":
 					get_app().currentAccount.prefs.list_timelines = [
 						item for item in get_app().currentAccount.prefs.list_timelines
@@ -628,12 +636,13 @@ class MainGui(wx.Frame):
 						if inst.get('url') != tl.data
 					]
 				if tl.type == "remote_user":
-					# Remove from remote_user_timelines
+					# Remove from remote_user_timelines (match url, username, and filter)
 					inst_url = tl.data.get('url', '') if isinstance(tl.data, dict) else ''
 					username = tl.data.get('username', '') if isinstance(tl.data, dict) else ''
+					tl_filter = tl.data.get('filter') if isinstance(tl.data, dict) else None
 					get_app().currentAccount.prefs.remote_user_timelines = [
 						rut for rut in get_app().currentAccount.prefs.remote_user_timelines
-						if not (rut.get('url') == inst_url and rut.get('username') == username)
+						if not (rut.get('url') == inst_url and rut.get('username') == username and rut.get('filter') == tl_filter)
 					]
 				get_app().currentAccount.timelines.remove(tl)
 				sound.play(get_app().currentAccount,"close")

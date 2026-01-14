@@ -300,8 +300,29 @@ def havent_tweeted(account):
 	havent_posted(account)
 
 
-def user_timeline_user(account, username, focus=True):
-	if username in account.prefs.user_timelines and focus:
+def user_timeline_user(account, username, focus=True, filter=None):
+	"""Create a user timeline.
+
+	Args:
+		account: The account object
+		username: The username to create timeline for
+		focus: Whether to focus the new timeline
+		filter: Optional filter for Bluesky - 'posts_with_replies' (default),
+		        'posts_no_replies', 'posts_with_media', 'posts_and_author_threads'
+	"""
+	# Check for existing timeline with same user and filter
+	timeline_key = username if not filter else f"{username}:{filter}"
+	existing_keys = []
+	for ut in account.prefs.user_timelines:
+		if isinstance(ut, dict):
+			key = ut.get('username', '')
+			if ut.get('filter'):
+				key = f"{key}:{ut.get('filter')}"
+			existing_keys.append(key)
+		else:
+			existing_keys.append(ut)
+
+	if timeline_key in existing_keys and focus:
 		account.app.alert("You already have a timeline for this user open.", "Error")
 		return False
 	if len(account.prefs.user_timelines) >= 8:
@@ -309,12 +330,44 @@ def user_timeline_user(account, username, focus=True):
 		return False
 	user = account.app.lookup_user_name(account, username)
 	if user != -1:
-		if not focus:
-			account.timelines.append(timeline.timeline(account, name=username + "'s Timeline", type="user", data=username, user=user, silent=True))
+		# Build timeline name based on filter
+		filter_labels = {
+			'posts_no_replies': 'Posts Only',
+			'posts_with_media': 'Media',
+			'posts_and_author_threads': 'Threads',
+			'posts_with_video': 'Videos',
+			'posts_no_boosts': 'No Boosts',
+		}
+		tl_name = username + "'s Timeline"
+		if filter and filter in filter_labels:
+			tl_name = f"{username}'s {filter_labels[filter]}"
+
+		# Store data as dict if we have a filter
+		if filter:
+			data = {'username': username, 'filter': filter}
 		else:
-			account.timelines.append(timeline.timeline(account, name=username + "'s Timeline", type="user", data=username, user=user))
-		if username not in account.prefs.user_timelines:
-			account.prefs.user_timelines.append(username)
+			data = username
+
+		if not focus:
+			account.timelines.append(timeline.timeline(account, name=tl_name, type="user", data=data, user=user, silent=True))
+		else:
+			account.timelines.append(timeline.timeline(account, name=tl_name, type="user", data=data, user=user))
+
+		# Store in prefs
+		if filter:
+			pref_entry = {'username': username, 'filter': filter}
+			# Check if already exists
+			exists = False
+			for ut in account.prefs.user_timelines:
+				if isinstance(ut, dict) and ut.get('username') == username and ut.get('filter') == filter:
+					exists = True
+					break
+			if not exists:
+				account.prefs.user_timelines.append(pref_entry)
+		else:
+			if username not in account.prefs.user_timelines:
+				account.prefs.user_timelines.append(username)
+
 		main.window.refreshTimelines()
 		if focus:
 			account.currentIndex = len(account.timelines) - 1

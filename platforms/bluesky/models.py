@@ -199,6 +199,7 @@ def bluesky_post_to_universal(post, author=None, platform_data=None) -> Optional
     # Check if this is a FeedViewPost (has .post attribute with a PostView)
     inner_post = getattr(post, 'post', None)
     reason = getattr(post, 'reason', None)
+    reply_context = getattr(post, 'reply', None)  # Contains parent/root posts for replies
 
     # If we have a reason (repost), handle it specially
     if reason is not None:
@@ -337,14 +338,37 @@ def bluesky_post_to_universal(post, author=None, platform_data=None) -> Optional
         created_at_str = get_attr(post, 'indexed_at', '') or get_attr(post, 'indexedAt', '')
     created_at = parse_bluesky_datetime(created_at_str)
 
-    # Get reply info from record
+    # Get reply info from record and reply_context
     in_reply_to_id = None
+    reply_to_handle = None
     if record:
         reply = get_attr(record, 'reply', None)
         if reply:
             parent = get_attr(reply, 'parent', None)
             if parent:
                 in_reply_to_id = get_attr(parent, 'uri', None)
+
+    # Get parent author from reply_context (FeedViewPost.reply.parent.author)
+    if reply_context:
+        parent_post = get_attr(reply_context, 'parent', None)
+        if parent_post:
+            parent_author = get_attr(parent_post, 'author', None)
+            if parent_author:
+                reply_to_handle = get_attr(parent_author, 'handle', '')
+                # Also get the in_reply_to_id if not already set
+                if not in_reply_to_id:
+                    in_reply_to_id = get_attr(parent_post, 'uri', None)
+
+    # Prepend reply-to mention to text if this is a reply (but not if replying to self)
+    if reply_to_handle and text:
+        # Get the post author's handle to check if replying to self
+        post_author_handle = get_attr(post_author, 'handle', '') if post_author else ''
+        # Only prepend if:
+        # 1. Text doesn't already start with @reply_to_handle
+        # 2. Not replying to self (same author)
+        if not text.lower().startswith(f'@{reply_to_handle.lower()}'):
+            if reply_to_handle.lower() != post_author_handle.lower():
+                text = f'@{reply_to_handle} {text}'
 
     # Handle embed (media, quote posts, external links)
     embed = get_attr(post, 'embed', None)
