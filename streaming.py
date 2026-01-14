@@ -128,8 +128,9 @@ class MastodonStreamListener(StreamListener):
 		pass
 
 	def on_abort(self, err):
-		"""Called when stream is aborted"""
-		speak.speak(f"Stream disconnected for {self.account.me.acct}")
+		"""Called when stream is aborted - reconnect handled automatically"""
+		# Don't announce every disconnect since we auto-reconnect
+		pass
 
 	def on_unknown_event(self, name, data=None):
 		"""Called on unknown events"""

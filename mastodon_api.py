@@ -434,27 +434,31 @@ class mastodon(object):
 			return
 
 		import time
-		retry_count = 0
-		max_retries = 5
+		consecutive_errors = 0
 		base_delay = 5  # seconds
+		max_delay = 300  # 5 minutes max
 
-		while retry_count < max_retries:
+		while True:
 			try:
 				self.stream = self.api.stream_user(self.stream_listener, run_async=False, reconnect_async=True)
-				# If stream exits normally, reset retry count
-				retry_count = 0
+				# If stream exits normally, reset error count
+				consecutive_errors = 0
 			except Exception as e:
 				error_str = str(e)
-				# Don't spam errors for common transient issues
-				if "Missing field" not in error_str:
+				# Don't count transient parse errors toward consecutive errors
+				if "Missing field" in error_str or "MalformedEventError" in error_str:
+					# Brief pause then retry without counting as real error
+					time.sleep(2)
+					continue
+
+				consecutive_errors += 1
+				# Only announce errors after a few consecutive failures
+				if consecutive_errors >= 3:
 					speak.speak("Stream error: " + error_str)
-				retry_count += 1
-				if retry_count < max_retries:
-					# Exponential backoff
-					delay = base_delay * (2 ** (retry_count - 1))
-					time.sleep(delay)
-				else:
-					speak.speak(f"Stream failed after {max_retries} attempts")
+
+				# Exponential backoff with cap
+				delay = min(base_delay * (2 ** (consecutive_errors - 1)), max_delay)
+				time.sleep(delay)
 
 	def followers(self, id):
 		# Use platform backend if available
