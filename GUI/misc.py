@@ -516,6 +516,9 @@ def play(status):
 		speak.speak("Stopped")
 		sound.stop()
 		return
+	# For boosts, get the actual boosted post
+	if hasattr(status, 'reblog') and status.reblog:
+		status = status.reblog
 	text = get_app().strip_html(getattr(status, 'content', ''))
 	urls = get_app().find_urls_in_text(text)
 	try:
@@ -534,6 +537,10 @@ def play_external(status):
 		speak.speak("Stopped")
 		sound.stop()
 		return
+
+	# For boosts, get the actual boosted post
+	if hasattr(status, 'reblog') and status.reblog:
+		status = status.reblog
 
 	audio_url = None
 
