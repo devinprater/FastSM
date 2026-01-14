@@ -247,61 +247,79 @@ class TimelineFilterDialog(wx.Dialog):
         """Apply the filter to the timeline."""
         from . import main as main_window
 
-        # Remember current position
-        current_id = self._get_current_status_id()
+        try:
+            # Remember current position
+            current_id = self._get_current_status_id()
 
-        # Save filter settings to timeline
-        self.timeline._filter_settings = {
-            'original': self.show_original.GetValue(),
-            'replies': self.show_replies.GetValue(),
-            'threads': self.show_threads.GetValue(),
-            'boosts': self.show_boosts.GetValue(),
-            'quotes': self.show_quotes.GetValue(),
-            'media': self.show_media.GetValue(),
-            'no_media': self.show_no_media.GetValue(),
-        }
+            # Save filter settings to timeline
+            self.timeline._filter_settings = {
+                'original': self.show_original.GetValue(),
+                'replies': self.show_replies.GetValue(),
+                'threads': self.show_threads.GetValue(),
+                'boosts': self.show_boosts.GetValue(),
+                'quotes': self.show_quotes.GetValue(),
+                'media': self.show_media.GetValue(),
+                'no_media': self.show_no_media.GetValue(),
+            }
 
-        # Save to account prefs for persistence
-        _save_filter_settings(self.timeline.account, self.timeline)
+            # Save to account prefs for persistence
+            _save_filter_settings(self.timeline.account, self.timeline)
 
-        # Filter statuses from the unfiltered list
-        filtered = []
-        for status in self.timeline._unfiltered_statuses:
-            if should_show_status(status, self.timeline._filter_settings, self.app):
-                filtered.append(status)
+            # Filter statuses from the unfiltered list
+            filtered = []
+            for status in self.timeline._unfiltered_statuses:
+                if should_show_status(status, self.timeline._filter_settings, self.app):
+                    filtered.append(status)
 
-        self.timeline.statuses = filtered
-        self.timeline._is_filtered = True
+            self.timeline.statuses = filtered
+            self.timeline._is_filtered = True
 
-        # Refresh the list and restore position
-        main_window.window.refreshList()
-        self._restore_selection(current_id)
+            # Refresh the list and restore position
+            main_window.window.refreshList()
+            self._restore_selection(current_id)
+        finally:
+            # Always ensure index is valid and dialog closes
+            self._ensure_valid_index()
+            self.Destroy()
 
-        self.Destroy()
+    def _ensure_valid_index(self):
+        """Ensure timeline index is within valid bounds."""
+        from . import main as main_window
+        if len(self.timeline.statuses) == 0:
+            self.timeline.index = 0
+        elif self.timeline.index >= len(self.timeline.statuses):
+            self.timeline.index = 0
+            try:
+                main_window.window.list2.SetSelection(0)
+            except:
+                pass
 
     def on_clear(self, event):
         """Clear the filter and restore all posts."""
         from . import main as main_window
 
-        # Remember current position
-        current_id = self._get_current_status_id()
+        try:
+            # Remember current position
+            current_id = self._get_current_status_id()
 
-        if hasattr(self.timeline, '_unfiltered_statuses'):
-            self.timeline.statuses = list(self.timeline._unfiltered_statuses)
-            del self.timeline._unfiltered_statuses
+            if hasattr(self.timeline, '_unfiltered_statuses'):
+                self.timeline.statuses = list(self.timeline._unfiltered_statuses)
+                del self.timeline._unfiltered_statuses
 
-        self.timeline._is_filtered = False
-        if hasattr(self.timeline, '_filter_settings'):
-            del self.timeline._filter_settings
+            self.timeline._is_filtered = False
+            if hasattr(self.timeline, '_filter_settings'):
+                del self.timeline._filter_settings
 
-        # Remove from saved prefs
-        _clear_filter_settings(self.timeline.account, self.timeline)
+            # Remove from saved prefs
+            _clear_filter_settings(self.timeline.account, self.timeline)
 
-        # Refresh the list and restore position
-        main_window.window.refreshList()
-        self._restore_selection(current_id)
-
-        self.Destroy()
+            # Refresh the list and restore position
+            main_window.window.refreshList()
+            self._restore_selection(current_id)
+        finally:
+            # Always ensure index is valid and dialog closes
+            self._ensure_valid_index()
+            self.Destroy()
 
 
 def show_filter_dialog(account):
