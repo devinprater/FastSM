@@ -114,6 +114,27 @@ def should_show_status(status, settings, app=None, _parent_cache=None):
     if not _has_media and not settings.get('no_media', True):
         return False
 
+    # Check text filter
+    filter_text = settings.get('text', '').strip().lower()
+    if filter_text:
+        post = get_post_for_check(status)
+        # Get text content - try 'text' attribute first, then strip HTML from 'content'
+        post_text = getattr(post, 'text', '')
+        if not post_text:
+            content = getattr(post, 'content', '')
+            if content and app:
+                post_text = app.strip_html(content)
+        post_text = post_text.lower() if post_text else ''
+
+        # Also check display name and username
+        account = getattr(post, 'account', None)
+        display_name = getattr(account, 'display_name', '') if account else ''
+        acct = getattr(account, 'acct', '') if account else ''
+
+        searchable = f"{post_text} {display_name} {acct}".lower()
+        if filter_text not in searchable:
+            return False
+
     return True
 
 
@@ -165,6 +186,14 @@ class TimelineFilterDialog(wx.Dialog):
         self.show_no_media.SetValue(True)
         main_box.Add(self.show_no_media, 0, wx.ALL, 5)
 
+        # Text filter
+        text_box = wx.BoxSizer(wx.HORIZONTAL)
+        text_label = wx.StaticText(panel, -1, "Contains &text:")
+        text_box.Add(text_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        self.filter_text = wx.TextCtrl(panel, -1, "", size=(200, -1))
+        text_box.Add(self.filter_text, 1, wx.ALL | wx.EXPAND, 5)
+        main_box.Add(text_box, 0, wx.ALL | wx.EXPAND, 5)
+
         # Load existing filter settings if present
         if hasattr(timeline, '_filter_settings'):
             settings = timeline._filter_settings
@@ -175,6 +204,7 @@ class TimelineFilterDialog(wx.Dialog):
             self.show_quotes.SetValue(settings.get('quotes', True))
             self.show_media.SetValue(settings.get('media', True))
             self.show_no_media.SetValue(settings.get('no_media', True))
+            self.filter_text.SetValue(settings.get('text', ''))
 
         # Buttons
         button_box = wx.BoxSizer(wx.HORIZONTAL)
@@ -260,6 +290,7 @@ class TimelineFilterDialog(wx.Dialog):
                 'quotes': self.show_quotes.GetValue(),
                 'media': self.show_media.GetValue(),
                 'no_media': self.show_no_media.GetValue(),
+                'text': self.filter_text.GetValue().strip(),
             }
 
             # Save to account prefs for persistence
