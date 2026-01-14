@@ -119,10 +119,11 @@ class Application:
 				shutil.rmtree(self.confpath + "/sounds/default")
 			if not os.path.exists(self.confpath + "/sounds"):
 				os.makedirs(self.confpath + "/sounds")
-			if platform.system() == "Darwin":
-				shutil.copytree("/applications/fastsm.app/sounds/default", self.confpath + "/sounds/default")
-			else:
+			# Check local sounds first, then fall back to bundled app path on Mac
+			if os.path.exists("sounds/default"):
 				shutil.copytree("sounds/default", self.confpath + "/sounds/default")
+			elif platform.system() == "Darwin" and os.path.exists("/applications/fastsm.app/sounds/default"):
+				shutil.copytree("/applications/fastsm.app/sounds/default", self.confpath + "/sounds/default")
 			# Write version file
 			try:
 				with open(sounds_version_file, 'w') as f:
