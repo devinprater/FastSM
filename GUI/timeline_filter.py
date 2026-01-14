@@ -211,11 +211,11 @@ class TimelineFilterDialog(wx.Dialog):
 
     def _get_current_status_id(self):
         """Get the ID of the currently focused status."""
-        from . import main as main_window
         try:
-            selection = main_window.window.list2.GetSelection()
-            if selection >= 0 and selection < len(self.timeline.statuses):
-                status = self.timeline.statuses[selection]
+            # Use timeline index directly (more reliable than GUI selection)
+            index = self.timeline.index
+            if index >= 0 and index < len(self.timeline.statuses):
+                status = self.timeline.statuses[index]
                 status_id = getattr(status, 'id', None)
                 return str(status_id) if status_id is not None else None
         except:
