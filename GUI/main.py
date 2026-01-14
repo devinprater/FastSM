@@ -8,7 +8,7 @@ from application import get_app
 import wx
 from keyboard_handler.wx_handler import WXKeyboardHandler
 import speak
-from . import account_options, accounts, chooser, custom_timelines, invisible, lists, misc, options, profile, search, timelines, tray, tweet, view
+from . import account_options, accounts, chooser, custom_timelines, invisible, lists, misc, options, profile, search, timeline_filter, timelines, tray, tweet, view
 import sound
 import timeline
 import threading
@@ -37,6 +37,8 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnLists, m_lists)
 		m_custom_timelines = menu.Append(-1, "Add Custom Timeline\tCtrl+Shift+T", "custom_timelines")
 		self.Bind(wx.EVT_MENU, self.OnCustomTimelines, m_custom_timelines)
+		m_filter_timeline = menu.Append(-1, "Filter Timeline\tCtrl+Shift+F", "filter_timeline")
+		self.Bind(wx.EVT_MENU, self.OnFilterTimeline, m_filter_timeline)
 		m_followers = menu.Append(-1, "List Followers\tCtrl+[", "followers")
 		self.Bind(wx.EVT_MENU, self.OnFollowers, m_followers)
 		m_friends = menu.Append(-1, "List Following\tCtrl+]", "following")
@@ -507,6 +509,9 @@ class MainGui(wx.Frame):
 	def OnCustomTimelines(self, event=None):
 		s=custom_timelines.CustomTimelinesDialog(get_app().currentAccount)
 		s.Show()
+
+	def OnFilterTimeline(self, event=None):
+		timeline_filter.show_filter_dialog(get_app().currentAccount)
 
 	def OnUserProfile(self, event=None):
 		status = self.get_current_status()

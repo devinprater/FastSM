@@ -43,6 +43,7 @@ alt+win+a=AddToList
 alt+win+shift+a=RemoveFromList
 alt+win+control+l=Lists
 alt+win+control+t=CustomTimelines
+alt+win+f=FilterTimeline
 alt+win+/=Search
 alt+win+shift+/=UserSearch
 control+win+a=Accounts

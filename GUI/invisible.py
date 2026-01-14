@@ -179,4 +179,7 @@ class invisible_interface(object):
 	def CustomTimelines(self):
 		main.window.OnCustomTimelines()
 
+	def FilterTimeline(self):
+		main.window.OnFilterTimeline()
+
 inv=invisible_interface()
