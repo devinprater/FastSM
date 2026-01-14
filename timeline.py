@@ -245,10 +245,13 @@ class timeline(object):
 	def load_conversation(self):
 		status = self.status
 
+		# Get the actual status ID (for mentions, id is notification_id, real id is in _original_status_id)
+		status_id = getattr(status, '_original_status_id', None) or status.id
+
 		# Try to use get_status_context for full thread (works better for Bluesky)
 		if hasattr(self.account, '_platform') and self.account._platform:
 			try:
-				context = self.account._platform.get_status_context(status.id)
+				context = self.account._platform.get_status_context(status_id)
 				ancestors = context.get('ancestors', [])
 				descendants = context.get('descendants', [])
 
