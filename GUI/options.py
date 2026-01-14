@@ -110,6 +110,9 @@ class advanced(wx.Panel, wx.Dialog):
 		self.streaming=wx.CheckBox(self, -1, "Enable streaming for home and notifications (Requires restart to disable)")
 		self.main_box.Add(self.streaming, 0, wx.ALL, 10)
 		self.streaming.SetValue(get_app().prefs.streaming)
+		self.load_all_previous=wx.CheckBox(self, -1, "Load all previous posts until timeline is fully loaded")
+		self.main_box.Add(self.load_all_previous, 0, wx.ALL, 10)
+		self.load_all_previous.SetValue(get_app().prefs.load_all_previous)
 
 class OptionsGui(wx.Dialog):
 	def __init__(self):
@@ -149,6 +152,7 @@ class OptionsGui(wx.Dialog):
 			if not get_app().prefs.invisible and main.window.invisible:
 				main.window.unregister_keys()
 		get_app().prefs.streaming=self.advanced.streaming.GetValue()
+		get_app().prefs.load_all_previous=self.advanced.load_all_previous.GetValue()
 		get_app().prefs.position=self.advanced.position.GetValue()
 		get_app().prefs.earcon_audio=self.general.earcon_audio.GetValue()
 		get_app().prefs.earcon_top=self.general.earcon_top.GetValue()

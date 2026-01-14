@@ -1,18 +1,18 @@
 @echo off
-REM Build script for FastSM using Nuitka
+REM Build script for FastSM using PyInstaller
 
 echo ========================================
-echo Building FastSM with Nuitka
+echo Building FastSM with PyInstaller
 echo ========================================
 echo.
 
-REM Check if Nuitka is installed
-python -m nuitka --version
+REM Check if PyInstaller is installed
+python -m PyInstaller --version
 if errorlevel 1 (
-    echo Nuitka is not installed. Installing...
-    pip install nuitka
+    echo PyInstaller is not installed. Installing...
+    pip install pyinstaller
     if errorlevel 1 (
-        echo Failed to install Nuitka
+        echo Failed to install PyInstaller
         pause
         exit /b 1
     )

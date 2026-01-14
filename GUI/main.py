@@ -444,7 +444,10 @@ class MainGui(wx.Frame):
 			speak.speak("No messages in this conversation")
 
 	def onPrev(self,event=None):
-		threading.Thread(target=get_app().currentAccount.currentTimeline.load, args=(True,), daemon=True).start()
+		if get_app().prefs.load_all_previous:
+			threading.Thread(target=get_app().currentAccount.currentTimeline.load_all_previous, daemon=True).start()
+		else:
+			threading.Thread(target=get_app().currentAccount.currentTimeline.load, args=(True,), daemon=True).start()
 
 	def OnVolup(self, event=None):
 		if get_app().prefs.volume<1.0:
