@@ -89,6 +89,7 @@ class mastodon(object):
 				self.prefs.platform_type = selected
 
 		# Initialize based on platform type
+		_log(f"Platform type: {self.prefs.platform_type}")
 		if self.prefs.platform_type == "bluesky":
 			self._init_bluesky(index)
 		else:
@@ -324,10 +325,13 @@ class mastodon(object):
 	def _init_bluesky(self, index):
 		"""Initialize Bluesky account."""
 		_log = self._log
-		_log("Initializing Bluesky...")
+		_log("Importing atproto.Client...")
 		from atproto import Client
+		_log("Importing atproto.exceptions...")
 		from atproto.exceptions import AtProtocolError
+		_log("Importing platforms.bluesky...")
 		from platforms.bluesky import BlueskyAccount, bluesky_profile_to_universal
+		_log("Bluesky imports complete")
 
 		# Bluesky-specific config
 		self.prefs.bluesky_handle = self.prefs.get("bluesky_handle", "")

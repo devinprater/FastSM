@@ -91,6 +91,14 @@ class Application:
 		import mastodon_api as t
 		import timeline
 
+		# Pre-import atproto in background thread (takes ~50s, do it early)
+		def preimport_atproto():
+			try:
+				import atproto
+			except:
+				pass
+		threading.Thread(target=preimport_atproto, daemon=True).start()
+
 		threading.Thread(target=self.cfu).start()
 
 		_log("Loading config...")
