@@ -220,13 +220,44 @@ class timeline(object):
 		self.statuses.append(status)
 		try:
 			if hasattr(status, "in_reply_to_id") and status.in_reply_to_id is not None:
-				self.process_status(self.app.lookup_status(self.account, status.in_reply_to_id))
+				# Check if this is a remote status
+				if hasattr(status, '_instance_url') and status._instance_url:
+					parent = self._lookup_remote_status(status._instance_url, status.in_reply_to_id)
+				else:
+					parent = self.app.lookup_status(self.account, status.in_reply_to_id)
+				if parent:
+					self.process_status(parent)
 			if hasattr(status, "reblog") and status.reblog:
 				self.process_status(status.reblog)
 			if hasattr(status, "quote") and status.quote:
 				self.process_status(status.quote)
 		except:
 			pass
+
+	def _lookup_remote_status(self, instance_url, status_id):
+		"""Look up a status from a remote instance."""
+		if not hasattr(self.account, '_platform') or not self.account._platform:
+			return None
+		try:
+			remote_api = self.account._platform.get_or_create_remote_api(instance_url)
+			status = remote_api.status(id=status_id)
+			if status:
+				from platforms.mastodon.models import mastodon_status_to_universal
+				from urllib.parse import urlparse
+				uni_status = mastodon_status_to_universal(status)
+				if uni_status:
+					# Mark as remote
+					uni_status._instance_url = instance_url
+					parsed = urlparse(instance_url)
+					instance_domain = parsed.netloc or parsed.path.strip('/')
+					if hasattr(uni_status, 'account') and uni_status.account:
+						if '@' not in uni_status.account.acct:
+							uni_status.account.acct = f"{uni_status.account.acct}@{instance_domain}"
+						uni_status.account._instance_url = instance_url
+				return uni_status
+		except:
+			pass
+		return None
 
 	def hide_tl(self):
 		if self.type == "user" and self.name != "Sent" or self.type == "list" or self.type == "search" or self.type == "conversation" or self.type == "instance" or self.type == "remote_user" or self.type == "favourites" or self.type == "bookmarks":
