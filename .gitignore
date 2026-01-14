@@ -52,6 +52,7 @@ FastSM.onefile-build/
 
 # Local settings
 .claude/
+userdata/
 
 # Temporary files
 *.tmp
