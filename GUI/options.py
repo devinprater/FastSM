@@ -190,7 +190,18 @@ class OptionsGui(wx.Dialog):
 		else:
 			reverse=False
 		get_app().prefs.reversed=self.general.reversed.GetValue()
-		if get_app().prefs.demojify_post!=self.general.demojify_post.GetValue() or get_app().prefs.demojify!=self.general.demojify.GetValue() or get_app().prefs.postTemplate!=self.templates.postTemplate.GetValue() or get_app().prefs.boostTemplate!=self.templates.boostTemplate.GetValue or get_app().prefs.quoteTemplate!=self.templates.quoteTemplate.GetValue or get_app().prefs.messageTemplate!=self.templates.messageTemplate.GetValue():
+		# Check if any display-affecting settings changed
+		cw_mode_values = ['hide', 'show', 'ignore']
+		new_cw_mode = cw_mode_values[self.general.cw_mode.GetSelection()]
+		if (get_app().prefs.demojify_post != self.general.demojify_post.GetValue() or
+			get_app().prefs.demojify != self.general.demojify.GetValue() or
+			get_app().prefs.postTemplate != self.templates.postTemplate.GetValue() or
+			get_app().prefs.boostTemplate != self.templates.boostTemplate.GetValue() or
+			get_app().prefs.quoteTemplate != self.templates.quoteTemplate.GetValue() or
+			get_app().prefs.messageTemplate != self.templates.messageTemplate.GetValue() or
+			get_app().prefs.notificationTemplate != self.templates.notificationTemplate.GetValue() or
+			get_app().prefs.use24HourTime != self.general.use24HourTime.GetValue() or
+			get_app().prefs.cw_mode != new_cw_mode):
 			refresh=True
 		get_app().prefs.demojify=self.general.demojify.GetValue()
 		get_app().prefs.demojify_post=self.general.demojify_post.GetValue()
@@ -204,12 +215,17 @@ class OptionsGui(wx.Dialog):
 		get_app().prefs.notificationTemplate=self.templates.notificationTemplate.GetValue()
 		get_app().prefs.autoOpenSingleURL=self.general.autoOpenSingleURL.GetValue()
 		# Content warning mode
-		cw_mode_values = ['hide', 'show', 'ignore']
-		get_app().prefs.cw_mode = cw_mode_values[self.general.cw_mode.GetSelection()]
+		get_app().prefs.cw_mode = new_cw_mode
 		self.Destroy()
 		if reverse:
 			timeline.reverse()
 		if refresh:
+			# Clear display caches on all statuses when templates/display settings change
+			for account in get_app().accounts:
+				for tl in account.timelines:
+					for status in tl.statuses:
+						if hasattr(status, '_display_cache'):
+							delattr(status, '_display_cache')
 			main.window.refreshList()
 
 	def OnClose(self, event):

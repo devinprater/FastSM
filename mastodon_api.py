@@ -374,7 +374,7 @@ class mastodon(object):
 				tl_type = ct.get('type', '')
 				tl_id = ct.get('id', '')
 				tl_name = ct.get('name', 'Feed')
-				if tl_type == 'feed':
+				if tl_type in ('feed', 'favourites'):
 					self.timelines.append(timeline.timeline(self, name=tl_name, type=tl_type, data=tl_id, silent=True))
 			except:
 				self.prefs.custom_timelines.remove(ct)

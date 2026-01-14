@@ -701,13 +701,19 @@ class timeline(object):
 	def get(self):
 		items = []
 		for i in self.statuses:
-			if self.type == "notifications":
-				items.append(self.app.process_notification(i))
-			elif self.type == "conversations":
-				items.append(self.app.process_conversation(i))
+			# Use cached display string if available
+			cache_attr = '_display_cache'
+			if hasattr(i, cache_attr):
+				items.append(getattr(i, cache_attr))
 			else:
-				# mentions now treated same as home/user/etc.
-				items.append(self.app.process_status(i))
+				if self.type == "notifications":
+					display = self.app.process_notification(i)
+				elif self.type == "conversations":
+					display = self.app.process_conversation(i)
+				else:
+					display = self.app.process_status(i)
+				setattr(i, cache_attr, display)
+				items.append(display)
 		return items
 
 	def prepare(self, items):
@@ -720,6 +726,8 @@ class timeline(object):
 			else:
 				# mentions now treated same as home/user/etc.
 				processed = self.app.process_status(i)
+			# Cache the display string on the item
+			i._display_cache = processed
 
 			if not self.app.prefs.reversed:
 				items2.append(processed)

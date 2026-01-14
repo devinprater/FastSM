@@ -415,7 +415,7 @@ class MainGui(wx.Frame):
 		self.list2.Freeze()
 		self.list2.Clear()
 		for i in stuffage:
-			self.list2.Insert(i,self.list2.GetCount())
+			self.list2.Append(i)
 		try:
 			self.list2.SetSelection(get_app().currentAccount.currentTimeline.index)
 		except:
