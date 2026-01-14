@@ -270,7 +270,13 @@ class MainGui(wx.Frame):
 	def onCopy(self,event=None):
 		status = self.get_current_status()
 		if status:
-			pyperclip.copy(get_app().template_to_string(status, get_app().prefs.copyTemplate))
+			# Use appropriate template based on status type
+			if hasattr(status, 'reblog') and status.reblog:
+				# For boosts, use boost template (without timestamp for copy)
+				template = get_app().prefs.boostTemplate.replace(" $created_at$", "").replace("$created_at$ ", "").replace("$created_at$", "")
+			else:
+				template = get_app().prefs.copyTemplate
+			pyperclip.copy(get_app().template_to_string(status, template))
 			speak.speak("Copied")
 
 	def OnClose(self, event=None):
