@@ -176,6 +176,8 @@ class Application:
 		self.prefs.earcon_audio = self.prefs.get("earcon_audio", True)
 		self.prefs.earcon_top = self.prefs.get("earcon_top", False)
 		self.prefs.wrap = self.prefs.get("wrap", False)
+		# Content warning handling: 'hide' = show CW only, 'show' = show CW + text, 'ignore' = show text only
+		self.prefs.cw_mode = self.prefs.get("cw_mode", "hide")
 
 		if self.prefs.invisible:
 			main.window.register_keys()
@@ -298,7 +300,7 @@ class Application:
 		text = re.sub(r'\s+', ' ', text).strip()
 		return text
 
-	def process_status(self, s, return_only_text=False, template=""):
+	def process_status(self, s, return_only_text=False, template="", ignore_cw=False):
 		"""Process a Mastodon status for display"""
 		if hasattr(s, 'content'):
 			text = self.strip_html(s.content)
@@ -307,10 +309,22 @@ class Application:
 
 		if hasattr(s, 'reblog') and s.reblog:
 			# For reblogs, get text from reblogged status (which includes its media descriptions)
-			text = self.process_status(s.reblog, True)
+			text = self.process_status(s.reblog, True, ignore_cw=ignore_cw)
 			if template == "":
 				template = self.prefs.boostTemplate
 		else:
+			# Handle content warning based on preference
+			spoiler = getattr(s, 'spoiler_text', None)
+			if spoiler and not ignore_cw:
+				cw_mode = getattr(self.prefs, 'cw_mode', 'hide')
+				if cw_mode == 'hide':
+					# Show only the content warning
+					text = f"CW: {spoiler}"
+				elif cw_mode == 'show':
+					# Show CW followed by text
+					text = f"CW: {spoiler}. {text}"
+				# 'ignore' mode: just use the text as-is
+
 			# Add media descriptions to text (only for non-reblogs to avoid duplication)
 			if hasattr(s, 'media_attachments') and s.media_attachments:
 				for media in s.media_attachments:

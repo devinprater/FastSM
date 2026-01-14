@@ -40,6 +40,18 @@ class general(wx.Panel, wx.Dialog):
 		self.main_box.Add(self.use24HourTime, 0, wx.ALL, 10)
 		self.use24HourTime.SetValue(get_app().prefs.use24HourTime)
 
+		# Content warning handling
+		cw_label = wx.StaticText(self, -1, "Content warnings:")
+		self.main_box.Add(cw_label, 0, wx.LEFT | wx.TOP, 10)
+		self.cw_mode = wx.Choice(self, -1, choices=[
+			"Hide post text (show CW only)",
+			"Show CW followed by post text",
+			"Ignore CW (show post text only)"
+		])
+		cw_mode_map = {'hide': 0, 'show': 1, 'ignore': 2}
+		self.cw_mode.SetSelection(cw_mode_map.get(get_app().prefs.cw_mode, 0))
+		self.main_box.Add(self.cw_mode, 0, wx.ALL, 10)
+
 
 class templates(wx.Panel, wx.Dialog):
 	def __init__(self, parent):
@@ -191,6 +203,9 @@ class OptionsGui(wx.Dialog):
 		get_app().prefs.userTemplate=self.templates.userTemplate.GetValue()
 		get_app().prefs.notificationTemplate=self.templates.notificationTemplate.GetValue()
 		get_app().prefs.autoOpenSingleURL=self.general.autoOpenSingleURL.GetValue()
+		# Content warning mode
+		cw_mode_values = ['hide', 'show', 'ignore']
+		get_app().prefs.cw_mode = cw_mode_values[self.general.cw_mode.GetSelection()]
 		self.Destroy()
 		if reverse:
 			timeline.reverse()

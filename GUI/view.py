@@ -52,7 +52,8 @@ class ViewGui(wx.Dialog):
 			# Failed to fetch, use original status
 			pass
 
-		self.post_text = self.account.app.process_status(self.status, True)
+		# Always show full text in view dialog, ignoring CW preference
+		self.post_text = self.account.app.process_status(self.status, True, ignore_cw=True)
 
 		# Update display_name to match the current self.status.account (may have changed for boosts)
 		display_name = getattr(self.status.account, 'display_name', '') or self.status.account.acct
