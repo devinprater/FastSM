@@ -30,10 +30,7 @@ class TweetGui(wx.Dialog):
 		if self.type == "edit" and status is not None:
 			inittext = getattr(status, 'text', self.account.app.strip_html(getattr(status, 'content', '')))
 
-		# On Mac, use main window as parent to properly capture keyboard focus
-		from . import main
-		parent = main.window if platform.system() == "Darwin" else None
-		wx.Dialog.__init__(self, parent, title=type, size=(350,200))
+		wx.Dialog.__init__(self, None, title=type, size=(350,200))
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
 		self.panel = wx.Panel(self)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
