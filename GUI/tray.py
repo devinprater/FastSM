@@ -19,7 +19,7 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 
 	def CreatePopupMenu(self):
 		menu = wx.Menu()
-		create_menu_item(menu, 'New tweet', self.frame.OnTweet)
+		create_menu_item(menu, 'New post', self.frame.OnTweet)
 		if self.frame.IsShown():
 			create_menu_item(menu, 'Hide window', self.OnShowHide)
 		else:

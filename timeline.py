@@ -38,6 +38,9 @@ class timeline(object):
 		self._loading = False  # Flag to prevent concurrent load operations
 		self._stop_loading_all = False  # Flag to stop load_all_previous
 		self._loading_all_active = False  # Flag to track if load_all_previous is running
+		# Timeline position sync (for home timeline with Mastodon)
+		self._position_moved = False  # Track if user navigated since last load
+		self._last_synced_id = None  # Last position synced with server
 
 		for i in self.app.timeline_settings:
 			if i.account_id == self.account.me.id and i.tl == self.name:
@@ -682,6 +685,13 @@ class timeline(object):
 					speak.speak(announcement)
 			if self.initial:
 				self.initial = False
+				# Sync position from server after initial load (if enabled)
+				# Only sync if user hasn't already moved (position_moved is False on initial load)
+				if not self._position_moved:
+					synced = self.sync_position_from_server()
+					if synced and self.app.currentAccount == self.account and self.account.currentTimeline == self:
+						# Update UI to reflect synced position
+						wx.CallAfter(main.window.list2.SetSelection, self.index)
 				# Notify account that this timeline's initial load is complete
 				if hasattr(self.account, '_on_timeline_initial_load_complete'):
 					self.account._on_timeline_initial_load_complete()
@@ -754,6 +764,94 @@ class timeline(object):
 				items2.insert(0, processed)
 		return items2
 
+	# ============ Position Sync Methods ============
+
+	def mark_position_moved(self):
+		"""Mark that the user has manually moved position in this timeline."""
+		self._position_moved = True
+
+	def _can_sync_position(self):
+		"""Check if position sync is available for this timeline."""
+		# Only sync home timeline for now
+		if self.type != "home":
+			return False
+		# Check if sync is enabled
+		if not self.app.prefs.sync_timeline_position:
+			return False
+		# Check if platform supports markers (Mastodon only)
+		platform_type = getattr(self.account.prefs, 'platform_type', 'mastodon')
+		if platform_type != 'mastodon':
+			return False
+		# Check if platform backend has marker methods
+		if not hasattr(self.account, '_platform') or not self.account._platform:
+			return False
+		if not hasattr(self.account._platform, 'get_timeline_marker'):
+			return False
+		return True
+
+	def sync_position_from_server(self):
+		"""Fetch position marker from server and set index accordingly.
+
+		Should be called after initial load when sync is enabled.
+		Returns True if position was synced, False otherwise.
+		"""
+		if not self._can_sync_position():
+			return False
+
+		try:
+			marker_id = self.account._platform.get_timeline_marker('home')
+			if not marker_id:
+				return False
+
+			# Find the status with this ID
+			for i, status in enumerate(self.statuses):
+				if str(status.id) == str(marker_id):
+					self.index = i
+					self._last_synced_id = marker_id
+					self._position_moved = False
+					return True
+
+			# Marker ID not found in current statuses - might be older
+			# Just track it for later sync decisions
+			self._last_synced_id = marker_id
+			return False
+
+		except Exception:
+			return False
+
+	def sync_position_to_server(self):
+		"""Push current position to server.
+
+		Should be called when position was moved and we want to sync.
+		Returns True if position was synced, False otherwise.
+		"""
+		if not self._can_sync_position():
+			return False
+
+		if not self._position_moved:
+			return False  # No change to sync
+
+		if len(self.statuses) == 0:
+			return False
+
+		try:
+			current_status = self.statuses[self.index]
+			current_id = str(current_status.id)
+
+			# Don't sync if it's the same as last synced
+			if current_id == self._last_synced_id:
+				return False
+
+			success = self.account._platform.set_timeline_marker('home', current_id)
+			if success:
+				self._last_synced_id = current_id
+				self._position_moved = False
+				return True
+			return False
+
+		except Exception:
+			return False
+
 
 def add(account, name, type, data=None, user=None):
 	account.timelines.append(timeline(account, name, type, data, user))
@@ -782,6 +880,14 @@ def timelineThread(account):
 				speak.speak(str(error))
 		if app.prefs.streaming and (account.stream is not None and not account.stream_thread.is_alive() or account.stream is None):
 			account.start_stream()
+
+		# Sync timeline positions to server if changed
+		if app.prefs.sync_timeline_position:
+			for i in account.timelines:
+				try:
+					i.sync_position_to_server()
+				except:
+					pass
 
 		# Resolve unknown users using per-account cache
 		if len(account.user_cache.unknown_users) > 0:

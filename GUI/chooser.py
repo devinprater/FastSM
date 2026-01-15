@@ -71,9 +71,21 @@ class ChooseGui(wx.Dialog):
 		elif self.type==self.TYPE_UNFOLLOW:
 			misc.unfollow_user(self.account,self.returnvalue)
 		elif self.type==self.TYPE_BLOCK:
-			user=self.account.block(self.returnvalue)
+			try:
+				user = self.account.app.lookup_user_name(self.account, self.returnvalue)
+				if user != -1:
+					self.account.block(user.id)
+					sound.play(self.account, "block")
+			except Exception as e:
+				self.account.app.handle_error(e, "Block")
 		elif self.type==self.TYPE_UNBLOCK:
-			user=self.account.unblock(self.returnvalue)
+			try:
+				user = self.account.app.lookup_user_name(self.account, self.returnvalue)
+				if user != -1:
+					self.account.unblock(user.id)
+					sound.play(self.account, "unblock")
+			except Exception as e:
+				self.account.app.handle_error(e, "Unblock")
 		elif self.type==self.TYPE_MUTE:
 			try:
 				user = self.account.app.lookup_user_name(self.account, self.returnvalue)
@@ -86,8 +98,12 @@ class ChooseGui(wx.Dialog):
 			try:
 				user = self.account.app.lookup_user_name(self.account, self.returnvalue)
 				if user != -1:
-					self.account.api.account_unmute(id=user.id)
-			except MastodonError as e:
+					# Use platform backend if available
+					if hasattr(self.account, '_platform') and self.account._platform:
+						self.account._platform.unmute(user.id)
+					else:
+						self.account.api.account_unmute(id=user.id)
+			except Exception as e:
 				self.account.app.handle_error(e,"Unmute")
 		elif self.type==self.TYPE_USER_TIMELINE:
 			# Show filter selection dialog for user timelines
@@ -97,61 +113,89 @@ class ChooseGui(wx.Dialog):
 			try:
 				user = self.account.app.lookup_user_name(self.account, self.returnvalue)
 				if user != -1:
-					relationships = self.account.api.account_relationships([user.id])
-					if relationships and len(relationships) > 0:
-						rel = relationships[0]
-						if getattr(rel, 'following', False):
-							self.account.unfollow(self.returnvalue)
-							sound.play(self.account, "unfollow")
-						else:
-							self.account.follow(self.returnvalue)
-							sound.play(self.account, "follow")
+					# Check if we can get relationship info
+					following = False
+					if hasattr(self.account, 'api') and hasattr(self.account.api, 'account_relationships'):
+						try:
+							relationships = self.account.api.account_relationships([user.id])
+							if relationships and len(relationships) > 0:
+								following = getattr(relationships[0], 'following', False)
+						except:
+							pass
+					elif hasattr(user, 'viewer') and user.viewer:
+						# Bluesky viewer info
+						following = getattr(user.viewer, 'following', False)
+
+					if following:
+						self.account.unfollow(user.id)
+						sound.play(self.account, "unfollow")
 					else:
-						# No relationship data, assume not following
-						self.account.follow(self.returnvalue)
+						self.account.follow(user.id)
 						sound.play(self.account, "follow")
-			except MastodonError as e:
+			except Exception as e:
 				self.account.app.handle_error(e, "Toggle follow")
 		elif self.type==self.TYPE_MUTE_TOGGLE:
 			# Toggle mute state - check relationship first
 			try:
 				user = self.account.app.lookup_user_name(self.account, self.returnvalue)
 				if user != -1:
-					relationships = self.account.api.account_relationships([user.id])
-					if relationships and len(relationships) > 0:
-						rel = relationships[0]
-						if getattr(rel, 'muting', False):
-							self.account.api.account_unmute(id=user.id)
-							sound.play(self.account, "unmute")
+					# Check if we can get relationship info
+					muting = False
+					if hasattr(self.account, 'api') and hasattr(self.account.api, 'account_relationships'):
+						try:
+							relationships = self.account.api.account_relationships([user.id])
+							if relationships and len(relationships) > 0:
+								muting = getattr(relationships[0], 'muting', False)
+						except:
+							pass
+					elif hasattr(user, 'viewer') and user.viewer:
+						# Bluesky viewer info
+						muting = getattr(user.viewer, 'muted', False)
+
+					if muting:
+						# Unmute
+						if hasattr(self.account, '_platform') and self.account._platform:
+							self.account._platform.unmute(user.id)
 						else:
-							# Use mute dialog for options
+							self.account.api.account_unmute(id=user.id)
+						sound.play(self.account, "unmute")
+					else:
+						# Mute - use dialog for Mastodon, direct mute for Bluesky
+						platform_type = getattr(self.account.prefs, 'platform_type', 'mastodon')
+						if platform_type == 'mastodon':
 							from . import mute_dialog
 							mute_dialog.show_mute_dialog(self.account, user)
-					else:
-						# No relationship data, show mute dialog
-						from . import mute_dialog
-						mute_dialog.show_mute_dialog(self.account, user)
-			except MastodonError as e:
+						else:
+							if hasattr(self.account, '_platform') and self.account._platform:
+								self.account._platform.mute(user.id)
+							sound.play(self.account, "mute")
+			except Exception as e:
 				self.account.app.handle_error(e, "Toggle mute")
 		elif self.type==self.TYPE_BLOCK_TOGGLE:
 			# Toggle block state - check relationship first
 			try:
 				user = self.account.app.lookup_user_name(self.account, self.returnvalue)
 				if user != -1:
-					relationships = self.account.api.account_relationships([user.id])
-					if relationships and len(relationships) > 0:
-						rel = relationships[0]
-						if getattr(rel, 'blocking', False):
-							self.account.unblock(self.returnvalue)
-							sound.play(self.account, "unblock")
-						else:
-							self.account.block(self.returnvalue)
-							sound.play(self.account, "block")
+					# Check if we can get relationship info
+					blocking = False
+					if hasattr(self.account, 'api') and hasattr(self.account.api, 'account_relationships'):
+						try:
+							relationships = self.account.api.account_relationships([user.id])
+							if relationships and len(relationships) > 0:
+								blocking = getattr(relationships[0], 'blocking', False)
+						except:
+							pass
+					elif hasattr(user, 'viewer') and user.viewer:
+						# Bluesky viewer info
+						blocking = getattr(user.viewer, 'blocked_by', False) or getattr(user.viewer, 'blocking', False)
+
+					if blocking:
+						self.account.unblock(user.id)
+						sound.play(self.account, "unblock")
 					else:
-						# No relationship data, assume not blocking
-						self.account.block(self.returnvalue)
+						self.account.block(user.id)
 						sound.play(self.account, "block")
-			except MastodonError as e:
+			except Exception as e:
 				self.account.app.handle_error(e, "Toggle block")
 		elif self.type==self.TYPE_FOLLOW_HASHTAG:
 			# Follow a hashtag - strip # prefix if present

@@ -178,11 +178,47 @@ class BlueskyAccount(PlatformAccount):
             # Store cursor for next pagination request
             self._store_cursor('notifications', getattr(response, 'cursor', None))
 
+            # Collect URIs for like/repost notifications that need post data
+            uris_to_fetch = []
+            notif_uri_map = {}  # Map from reasonSubject URI to notification indices
+            raw_notifs = list(response.notifications)
+
+            for i, notif in enumerate(raw_notifs):
+                reason = getattr(notif, 'reason', '')
+                if reason in ('like', 'repost'):
+                    reason_subject = getattr(notif, 'reason_subject', None) or getattr(notif, 'reasonSubject', None)
+                    if reason_subject:
+                        uris_to_fetch.append(reason_subject)
+                        if reason_subject not in notif_uri_map:
+                            notif_uri_map[reason_subject] = []
+                        notif_uri_map[reason_subject].append(i)
+
+            # Batch fetch posts for like/repost notifications (max 25 per request)
+            fetched_posts = {}
+            for batch_start in range(0, len(uris_to_fetch), 25):
+                batch_uris = list(set(uris_to_fetch[batch_start:batch_start + 25]))
+                if batch_uris:
+                    try:
+                        posts_response = self.client.get_posts(batch_uris)
+                        for post in posts_response.posts:
+                            post_uri = getattr(post, 'uri', '')
+                            if post_uri:
+                                fetched_posts[post_uri] = bluesky_post_to_universal(post)
+                    except Exception:
+                        pass  # Continue even if batch fetch fails
+
             notifications = []
 
-            for notif in response.notifications:
+            for i, notif in enumerate(raw_notifs):
                 universal_notif = bluesky_notification_to_universal(notif)
                 if universal_notif:
+                    # For like/repost notifications, attach the fetched post
+                    reason = getattr(notif, 'reason', '')
+                    if reason in ('like', 'repost') and universal_notif.status is None:
+                        reason_subject = getattr(notif, 'reason_subject', None) or getattr(notif, 'reasonSubject', None)
+                        if reason_subject and reason_subject in fetched_posts:
+                            universal_notif.status = fetched_posts[reason_subject]
+
                     notifications.append(universal_notif)
                     self.user_cache.add_users_from_notification(universal_notif)
 
@@ -618,42 +654,47 @@ class BlueskyAccount(PlatformAccount):
     def pin_status(self, status_id: str) -> bool:
         """Pin a status to your profile by updating the profile record."""
         try:
+            from atproto import models
+
             # Get the post to get its CID
             post_response = self.client.get_posts([status_id])
             if not post_response.posts:
                 return False
-            
+
             post = post_response.posts[0]
             post_cid = getattr(post, 'cid', '')
-            
+
             if not post_cid:
                 return False
-            
+
+            # Get user DID
+            user_did = getattr(self.client.me, 'did', None)
+            if not user_did:
+                return False
+
             # Try to get current profile record, handle if it doesn't exist
             current_value = None
             try:
-                profile_response = self.client.com.atproto.repo.get_record({
-                    'repo': self.client.me.did,
-                    'collection': 'app.bsky.actor.profile',
-                    'rkey': 'self'
-                })
+                params = models.ComAtprotoRepoGetRecord.Params(
+                    repo=user_did,
+                    collection='app.bsky.actor.profile',
+                    rkey='self'
+                )
+                profile_response = self.client.com.atproto.repo.get_record(params)
                 current_value = profile_response.value if profile_response else None
             except Exception:
                 # Profile record doesn't exist yet, will create new one
                 current_value = None
-            
-            # Create strong reference to the post
-            pinned_post = {
-                'uri': status_id,
-                'cid': post_cid
-            }
-            
-            # Build updated profile record
+
+            # Build updated profile record preserving existing data
             updated_profile = {
                 '$type': 'app.bsky.actor.profile',
-                'pinnedPost': pinned_post
+                'pinnedPost': {
+                    'uri': status_id,
+                    'cid': post_cid
+                }
             }
-            
+
             if current_value:
                 # Preserve existing profile data
                 display_name = getattr(current_value, 'display_name', None) or getattr(current_value, 'displayName', None)
@@ -668,44 +709,56 @@ class BlueskyAccount(PlatformAccount):
                 banner = getattr(current_value, 'banner', None)
                 if banner:
                     updated_profile['banner'] = banner
-            
-            # Put the updated profile (creates if doesn't exist)
-            self.client.com.atproto.repo.put_record({
-                'repo': self.client.me.did,
-                'collection': 'app.bsky.actor.profile',
-                'rkey': 'self',
-                'record': updated_profile
-            })
-            
+
+            # Put the updated profile
+            data = models.ComAtprotoRepoPutRecord.Data(
+                repo=user_did,
+                collection='app.bsky.actor.profile',
+                rkey='self',
+                record=updated_profile
+            )
+            self.client.com.atproto.repo.put_record(data)
+
             return True
         except (AtProtocolError, InvokeTimeoutError) as e:
+            self.app.handle_error(e, "pin post")
+            return False
+        except Exception as e:
             self.app.handle_error(e, "pin post")
             return False
 
     def unpin_status(self, status_id: str) -> bool:
         """Unpin a status from your profile by updating the profile record."""
         try:
+            from atproto import models
+
+            # Get user DID
+            user_did = getattr(self.client.me, 'did', None)
+            if not user_did:
+                return False
+
             # Try to get current profile record
             current_value = None
             try:
-                profile_response = self.client.com.atproto.repo.get_record({
-                    'repo': self.client.me.did,
-                    'collection': 'app.bsky.actor.profile',
-                    'rkey': 'self'
-                })
+                params = models.ComAtprotoRepoGetRecord.Params(
+                    repo=user_did,
+                    collection='app.bsky.actor.profile',
+                    rkey='self'
+                )
+                profile_response = self.client.com.atproto.repo.get_record(params)
                 current_value = profile_response.value if profile_response else None
             except Exception:
                 # No profile record, nothing to unpin
                 return True
-            
+
             if not current_value:
                 return True  # Nothing to unpin
-            
+
             # Build updated profile record without pinnedPost
             updated_profile = {
                 '$type': 'app.bsky.actor.profile'
             }
-            
+
             # Preserve existing profile data (but not pinnedPost)
             display_name = getattr(current_value, 'display_name', None) or getattr(current_value, 'displayName', None)
             if display_name:
@@ -719,17 +772,21 @@ class BlueskyAccount(PlatformAccount):
             banner = getattr(current_value, 'banner', None)
             if banner:
                 updated_profile['banner'] = banner
-            
+
             # Put the updated profile without pinnedPost
-            self.client.com.atproto.repo.put_record({
-                'repo': self.client.me.did,
-                'collection': 'app.bsky.actor.profile',
-                'rkey': 'self',
-                'record': updated_profile
-            })
-            
+            data = models.ComAtprotoRepoPutRecord.Data(
+                repo=user_did,
+                collection='app.bsky.actor.profile',
+                rkey='self',
+                record=updated_profile
+            )
+            self.client.com.atproto.repo.put_record(data)
+
             return True
         except (AtProtocolError, InvokeTimeoutError) as e:
+            self.app.handle_error(e, "unpin post")
+            return False
+        except Exception as e:
             self.app.handle_error(e, "unpin post")
             return False
 

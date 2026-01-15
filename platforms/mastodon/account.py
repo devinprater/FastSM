@@ -68,6 +68,43 @@ class MastodonAccount(PlatformAccount):
             self.user_cache.add_users_from_status(status)
         return result
 
+    # ============ Timeline Marker Methods ============
+
+    def get_timeline_marker(self, timeline: str = 'home') -> Optional[str]:
+        """Get the last read position marker for a timeline.
+
+        Args:
+            timeline: The timeline to get marker for ('home' or 'notifications')
+
+        Returns:
+            The last read status/notification ID, or None if no marker set
+        """
+        try:
+            markers = self.api.markers_get(timeline=[timeline])
+            if markers and timeline in markers:
+                marker = markers[timeline]
+                return getattr(marker, 'last_read_id', None)
+        except MastodonError:
+            pass
+        return None
+
+    def set_timeline_marker(self, timeline: str, last_read_id: str) -> bool:
+        """Set the last read position marker for a timeline.
+
+        Args:
+            timeline: The timeline to set marker for ('home' or 'notifications')
+            last_read_id: The ID of the last read status/notification
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # markers_set takes (timelines, last_read_ids) as positional args
+            self.api.markers_set(timeline, last_read_id)
+            return True
+        except MastodonError:
+            return False
+
     def get_mentions(self, limit: int = 40, **kwargs) -> List[UniversalStatus]:
         """Get mentions as statuses (extracted from notifications).
 
@@ -560,15 +597,41 @@ class MastodonAccount(PlatformAccount):
         if visibility is None:
             visibility = self.default_visibility
 
+        status_id = str(status.id) if hasattr(status, 'id') else str(status)
+        result = None
+        quote_succeeded = False
+
+        # Method 1: Try native Mastodon 4.5+ quoting via direct API call
         try:
-            # Try native quote (Mastodon 4.0+)
-            status_id = status.id if hasattr(status, 'id') else status
-            result = self.api.status_post(status=text, quote_id=status_id, visibility=visibility)
-        except:
-            # Fallback: include link to original post
+            # Mastodon.py doesn't natively support quoted_status_id, so use __api_request
+            params = {
+                'status': text,
+                'visibility': visibility,
+                'quoted_status_id': status_id
+            }
+            result = self.api._Mastodon__api_request('POST', '/api/v1/statuses', params)
+            # Verify the quote was actually attached (check for quote field in response)
+            if result and ('quote' in result or 'quote_id' in result):
+                quote_succeeded = True
+        except Exception:
+            pass
+
+        # Method 2: Try Mastodon.py's quote_id (for Fedibird/compatible servers)
+        if not quote_succeeded:
+            result = None
+            try:
+                result = self.api.status_post(status=text, quote_id=status_id, visibility=visibility)
+                # Check if quote was attached
+                if result and (hasattr(result, 'quote') and result.quote):
+                    quote_succeeded = True
+            except Exception:
+                pass
+
+        # Method 3: Fallback - include link to original post
+        if not quote_succeeded:
             original_url = getattr(status, 'url', None)
             if not original_url and hasattr(status, 'account'):
-                original_url = f"{self.api.api_base_url}/@{status.account.acct}/{status.id}"
+                original_url = f"{self.api.api_base_url}/@{status.account.acct}/{status_id}"
             result = self.api.status_post(status=f"{text}\n\n{original_url}", visibility=visibility)
 
         return mastodon_status_to_universal(result)

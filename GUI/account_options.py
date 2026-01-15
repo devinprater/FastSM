@@ -7,7 +7,20 @@ from application import get_app
 
 class general(wx.Panel, wx.Dialog):
 	def __init__(self, account, parent):
-		self.snd = stream.FileStream(file=get_app().confpath+"/sounds/default/boundary.ogg")
+		# Try multiple paths for the preview sound
+		self.snd = None
+		sound_paths = [
+			get_app().confpath+"/sounds/default/boundary.ogg",
+			"sounds/default/boundary.ogg",
+			os.path.join(os.path.dirname(sys.executable), "sounds/default/boundary.ogg"),
+		]
+		for path in sound_paths:
+			if os.path.exists(path):
+				try:
+					self.snd = stream.FileStream(file=path)
+					break
+				except:
+					pass
 		self.account=account
 		super(general, self).__init__(parent)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
@@ -17,23 +30,29 @@ class general(wx.Panel, wx.Dialog):
 		self.soundpack_box.Add(self.soundpackslist, 0, wx.ALL, 10)
 		self.soundpackslist.Bind(wx.EVT_LISTBOX, self.on_soundpacks_list_change)
 		sounds_path = get_app().confpath+"/sounds"
-		dirs = os.listdir(sounds_path)
-		for i in range(0,len(dirs)):
-			# Only include directories, skip hidden files and underscore-prefixed items
-			if not dirs[i].startswith("_") and not dirs[i].startswith(".") and os.path.isdir(os.path.join(sounds_path, dirs[i])):
-				self.soundpackslist.Insert(dirs[i],self.soundpackslist.GetCount())
-				if account.prefs.soundpack==dirs[i]:
-					self.soundpackslist.SetSelection(self.soundpackslist.GetCount()-1)
-					self.sp=dirs[i]
+		dirs = []
 		try:
-			dirs2 = os.listdir("sounds")
-			for i in range(0,len(dirs2)):
-				# Only include directories, skip hidden files and underscore-prefixed items
-				if not dirs2[i].startswith("_") and not dirs2[i].startswith(".") and dirs2[i] not in dirs and os.path.isdir(os.path.join("sounds", dirs2[i])):
-					self.soundpackslist.Insert(dirs2[i],self.soundpackslist.GetCount())
-					if account.prefs.soundpack==dirs2[i]:
-						self.soundpackslist.SetSelection(self.soundpackslist.GetCount()-1)
-						self.sp=dirs2[i]
+			if os.path.exists(sounds_path):
+				dirs = os.listdir(sounds_path)
+				for i in range(0,len(dirs)):
+					# Only include directories, skip hidden files and underscore-prefixed items
+					if not dirs[i].startswith("_") and not dirs[i].startswith(".") and os.path.isdir(os.path.join(sounds_path, dirs[i])):
+						self.soundpackslist.Insert(dirs[i],self.soundpackslist.GetCount())
+						if account.prefs.soundpack==dirs[i]:
+							self.soundpackslist.SetSelection(self.soundpackslist.GetCount()-1)
+							self.sp=dirs[i]
+		except:
+			pass
+		try:
+			if os.path.exists("sounds"):
+				dirs2 = os.listdir("sounds")
+				for i in range(0,len(dirs2)):
+					# Only include directories, skip hidden files and underscore-prefixed items
+					if not dirs2[i].startswith("_") and not dirs2[i].startswith(".") and dirs2[i] not in dirs and os.path.isdir(os.path.join("sounds", dirs2[i])):
+						self.soundpackslist.Insert(dirs2[i],self.soundpackslist.GetCount())
+						if account.prefs.soundpack==dirs2[i]:
+							self.soundpackslist.SetSelection(self.soundpackslist.GetCount()-1)
+							self.sp=dirs2[i]
 		except:
 			pass
 		if not hasattr(self,"sp"):
@@ -61,8 +80,9 @@ class general(wx.Panel, wx.Dialog):
 
 	def OnPan(self,event):
 		pan=self.soundpan.GetValue()/50
-		self.snd.pan=pan
-		self.snd.play()
+		if self.snd:
+			self.snd.pan=pan
+			self.snd.play()
 
 	def on_soundpacks_list_change(self, event):
 		self.sp=event.GetString()
@@ -115,9 +135,14 @@ class OptionsGui(wx.Dialog):
 						threading.Thread(target=tl.load, daemon=True).start()
 						break
 
-		self.general.snd.free()
+		# Explicitly save preferences to ensure persistence
+		self.account.prefs.save()
+
+		if self.general.snd:
+			self.general.snd.free()
 		self.Destroy()
 
 	def OnClose(self, event):
-		self.general.snd.free()
+		if self.general.snd:
+			self.general.snd.free()
 		self.Destroy()

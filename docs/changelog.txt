@@ -1,8 +1,36 @@
 FastSM Changelog
 ================
 
-0.2.0 (Current Development)
----------------------------
+0.2.1
+-----
+
+Bug Fixes:
+
+* Bluesky notifications: like/repost notifications now show the actual post content
+  - Fixed by batch-fetching posts via reasonSubject URI
+* User interactions now work from Bluesky notifications
+  - Follow, mute, block, view profile, and user timeline actions work on notification actors
+  - Relationship checking is now platform-agnostic (Mastodon uses account_relationships, Bluesky uses viewer)
+* Fixed follow/unfollow/block/unblock using user ID instead of handle
+  - All user interaction methods now properly use user.id (DID for Bluesky, numeric ID for Mastodon)
+  - Fixes "Invalid Record Key" errors on Bluesky when unfollowing
+* Timeline position syncing fixes
+  - Fixed invisible interface sync using wx.CallAfter for thread safety
+  - Fixed Mastodon marker API call signature (markers_set)
+  - Position now syncs to server on app close
+* Soundpack setting now properly saves between restarts
+* Quote posts now properly verify quote attachment before reporting success
+  - Falls back to URL inclusion if native quoting not supported
+
+New Features:
+
+* Notification viewer dialog - View notifications with dedicated viewer showing notification type, user info, and post content
+* Improved HTML to text conversion for post editing - preserves newlines and full mentions
+* Conversations can now be copied with Ctrl+C
+* Edit post now works from notifications
+
+0.2.0
+-----
 
 New Features:
 

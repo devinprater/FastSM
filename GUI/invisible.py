@@ -3,6 +3,8 @@ from . import main, misc
 import speak
 import sound
 import threading
+import wx
+
 def register_key(key,name,reg=True):
 	if hasattr(main.window,name):
 		try:
@@ -45,8 +47,13 @@ class invisible_interface(object):
 	def focus_tl(self,sync=False):
 		get_app().currentAccount.currentTimeline=get_app().currentAccount.list_timelines()[get_app().currentAccount.currentIndex]
 		if not sync and get_app().prefs.invisible_sync or sync:
-			main.window.list.SetSelection(get_app().currentAccount.currentIndex)
-			main.window.on_list_change(None)
+			# Use CallAfter for thread-safe wx operations
+			# Capture values at call time to avoid race conditions
+			current_index = get_app().currentAccount.currentIndex
+			def update_ui(idx=current_index):
+				main.window.list.SetSelection(idx)
+				main.window.on_list_change(None)
+			wx.CallAfter(update_ui)
 		extratext=""
 		if get_app().prefs.position:
 			if len(get_app().currentAccount.currentTimeline.statuses)==0:
@@ -59,12 +66,17 @@ class invisible_interface(object):
 			extratext+=", muted"
 		speak.speak(get_app().currentAccount.currentTimeline.name+". "+extratext,True)
 		if not get_app().prefs.invisible_sync and not sync:
-			main.window.play_earcon()
+			wx.CallAfter(main.window.play_earcon)
 
 	def focus_tl_item(self):
 		if get_app().prefs.invisible_sync:
-			main.window.list2.SetSelection(get_app().currentAccount.currentTimeline.index)
-			main.window.on_list2_change(None)
+			# Use CallAfter for thread-safe wx operations
+			# Capture values at call time to avoid race conditions
+			current_tl_index = get_app().currentAccount.currentTimeline.index
+			def update_ui(idx=current_tl_index):
+				main.window.list2.SetSelection(idx)
+				main.window.on_list2_change(None)
+			wx.CallAfter(update_ui)
 		else:
 			item = get_app().currentAccount.currentTimeline.statuses[get_app().currentAccount.currentTimeline.index]
 			# Handle conversations - get last_status for URL detection
@@ -133,6 +145,7 @@ class invisible_interface(object):
 				self.speak_item()
 			return
 		get_app().currentAccount.currentTimeline.index-=1
+		get_app().currentAccount.currentTimeline.mark_position_moved()
 		self.focus_tl_item()
 
 	def prev_item_jump(self):
@@ -142,10 +155,12 @@ class invisible_interface(object):
 				self.speak_item()
 			return
 		get_app().currentAccount.currentTimeline.index -= 20
+		get_app().currentAccount.currentTimeline.mark_position_moved()
 		self.focus_tl_item()
 	
 	def top_item(self):
 		get_app().currentAccount.currentTimeline.index=0
+		get_app().currentAccount.currentTimeline.mark_position_moved()
 		self.focus_tl_item()
 	
 	def next_item(self):
@@ -155,6 +170,7 @@ class invisible_interface(object):
 				self.speak_item()
 			return
 		get_app().currentAccount.currentTimeline.index+=1
+		get_app().currentAccount.currentTimeline.mark_position_moved()
 		self.focus_tl_item()
 	
 	def next_item_jump(self):
@@ -164,10 +180,12 @@ class invisible_interface(object):
 				self.speak_item()
 			return
 		get_app().currentAccount.currentTimeline.index += 20
+		get_app().currentAccount.currentTimeline.mark_position_moved()
 		self.focus_tl_item()
-	
+
 	def bottom_item(self):
 		get_app().currentAccount.currentTimeline.index=len(get_app().currentAccount.currentTimeline.statuses)-1
+		get_app().currentAccount.currentTimeline.mark_position_moved()
 		self.focus_tl_item()
 	
 	def previous_from_user(self):
@@ -214,6 +232,10 @@ class invisible_interface(object):
 
 	def FilterTimeline(self):
 		main.window.OnFilterTimeline()
+
+	def AccountOptions(self):
+		"""Open account options dialog."""
+		main.window.OnAccountOptions()
 
 	def FollowToggle(self):
 		"""Toggle follow state for a user."""

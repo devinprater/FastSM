@@ -26,9 +26,11 @@ class TweetGui(wx.Dialog):
 		self.media_attachments = []  # List of {'path': str, 'description': str}
 		self.scheduled_at = None  # For scheduled posts
 
-		# For edit mode, get the original post text
+		# For edit mode, get the original post text with newlines and full handles preserved
 		if self.type == "edit" and status is not None:
-			inittext = getattr(status, 'text', self.account.app.strip_html(getattr(status, 'content', '')))
+			content = getattr(status, 'content', '')
+			mentions = getattr(status, 'mentions', [])
+			inittext = self.account.app.html_to_text_for_edit(content, mentions)
 
 		wx.Dialog.__init__(self, None, title=type, size=(350,200))
 		self.Bind(wx.EVT_CLOSE, self.OnClose)

@@ -62,6 +62,9 @@ def url_chooser(account, status):
 	# Get text from status content
 	text = account.app.strip_html(getattr(status, 'content', ''))
 	urlList = account.app.find_urls_in_text(text)
+	if len(urlList) == 0:
+		speak.speak("No URLs in this post")
+		return
 	if len(urlList) == 1 and account.app.prefs.autoOpenSingleURL:
 		account.app.openURL(urlList[0])
 	else:
@@ -78,8 +81,10 @@ def follow(account, status):
 
 def follow_user(account, username):
 	try:
-		user = account.follow(username)
-		sound.play(account, "follow")
+		user = account.app.lookup_user_name(account, username)
+		if user != -1:
+			account.follow(user.id)
+			sound.play(account, "follow")
 	except Exception as error:
 		account.app.handle_error(error, "Follow " + username)
 
@@ -94,8 +99,10 @@ def unfollow(account, status):
 
 def unfollow_user(account, username):
 	try:
-		user = account.unfollow(username)
-		sound.play(account, "unfollow")
+		user = account.app.lookup_user_name(account, username)
+		if user != -1:
+			account.unfollow(user.id)
+			sound.play(account, "unfollow")
 	except Exception as error:
 		account.app.handle_error(error, "Unfollow " + username)
 

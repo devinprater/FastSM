@@ -147,6 +147,8 @@ class Application:
 		self.prefs.cw_mode = self.prefs.get("cw_mode", "hide")
 		# Keymap for invisible interface (default inherits from default.keymap)
 		self.prefs.keymap = self.prefs.get("keymap", "default")
+		# Sync home timeline position with Mastodon marker API
+		self.prefs.sync_timeline_position = self.prefs.get("sync_timeline_position", False)
 
 		if self.prefs.invisible:
 			main.window.register_keys()
@@ -267,6 +269,47 @@ class Application:
 		text = html_tag_re.sub('', text)
 		text = html.unescape(text)
 		text = re.sub(r'\s+', ' ', text).strip()
+		return text
+
+	def html_to_text_for_edit(self, content, mentions=None):
+		"""Convert HTML content to plain text for editing, preserving newlines and full handles.
+
+		Args:
+			content: The HTML content from the status
+			mentions: List of mention objects from the status (for resolving full handles)
+		"""
+		if not content:
+			return ""
+
+		text = content
+
+		# Replace mentions with full handles if we have mention data
+		# Mastodon HTML: <span class="h-card"><a href="https://instance/@user" ...>@<span>user</span></a></span>
+		if mentions:
+			for mention in mentions:
+				acct = getattr(mention, 'acct', '')
+				url = getattr(mention, 'url', '')
+				if acct and url:
+					# Match the mention link and replace with @acct
+					# Pattern matches <a href="URL">@anything</a> or similar structures
+					pattern = rf'<a[^>]*href=["\']?{re.escape(url)}["\']?[^>]*>.*?</a>'
+					text = re.sub(pattern, f'@{acct}', text, flags=re.IGNORECASE | re.DOTALL)
+
+		# Convert line breaks and paragraphs to newlines
+		text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+		text = re.sub(r'</p>\s*<p[^>]*>', '\n\n', text, flags=re.IGNORECASE)
+		text = re.sub(r'</?p[^>]*>', '\n', text, flags=re.IGNORECASE)
+
+		# Remove all remaining HTML tags
+		text = html_tag_re.sub('', text)
+
+		# Decode HTML entities
+		text = html.unescape(text)
+
+		# Clean up excessive newlines but preserve intentional ones
+		text = re.sub(r'\n{3,}', '\n\n', text)
+		text = text.strip()
+
 		return text
 
 	def process_status(self, s, return_only_text=False, template="", ignore_cw=False):
@@ -503,11 +546,25 @@ class Application:
 		"""Format a status using a template"""
 		if template == "":
 			template = self.prefs.postTemplate
+
+		# Handle $text$ specially - for reblogs, get text from reblog; also strip HTML
+		if "$text$" in template:
+			if hasattr(s, 'reblog') and s.reblog:
+				# For reblogs, get text from the reblogged status
+				text = getattr(s.reblog, 'text', '') or self.strip_html(getattr(s.reblog, 'content', ''))
+			else:
+				text = getattr(s, 'text', '') or self.strip_html(getattr(s, 'content', ''))
+			if self.prefs.demojify_post:
+				text = self.demojify(text)
+			template = template.replace("$text$", text)
+
 		temp = template.split(" ")
 		for i in range(len(temp)):
 			if "$" in temp[i]:
 				t = temp[i].split("$")
 				r = t[1]
+				if r == "text":
+					continue  # Already handled above
 				if "." in r:
 					q = r.split(".")
 					# Support multi-level attribute access (e.g., reblog.account.display_name)
@@ -718,15 +775,25 @@ class Application:
 
 		# Use per-account cache if available
 		if account and hasattr(account, 'user_cache') and account.user_cache:
-			# Define API callback
+			# Define API callback based on platform
 			def api_lookup(n):
 				if not use_api:
 					return None
 				try:
-					from platforms.mastodon.models import mastodon_user_to_universal
-					results = account.api.account_search(q=n, limit=1)
-					if results:
-						return mastodon_user_to_universal(results[0])
+					# Use platform backend if available
+					if hasattr(account, '_platform') and account._platform:
+						if hasattr(account._platform, 'lookup_user_by_name'):
+							return account._platform.lookup_user_by_name(n)
+						elif hasattr(account._platform, 'search_users'):
+							results = account._platform.search_users(n, limit=1)
+							if results:
+								return results[0]
+					else:
+						# Fallback to Mastodon API
+						from platforms.mastodon.models import mastodon_user_to_universal
+						results = account.api.account_search(q=n, limit=1)
+						if results:
+							return mastodon_user_to_universal(results[0])
 				except:
 					pass
 				return None
@@ -743,11 +810,23 @@ class Application:
 		if not use_api:
 			return -1
 		try:
-			results = account.api.account_search(q=name, limit=1)
-			if results:
-				user = results[0]
-				self._add_user_to_cache(user)
-				return user
+			# Use platform backend if available
+			if hasattr(account, '_platform') and account._platform:
+				if hasattr(account._platform, 'lookup_user_by_name'):
+					user = account._platform.lookup_user_by_name(name)
+					if user:
+						return user
+				elif hasattr(account._platform, 'search_users'):
+					results = account._platform.search_users(name, limit=1)
+					if results:
+						return results[0]
+			else:
+				# Fallback to Mastodon API
+				results = account.api.account_search(q=name, limit=1)
+				if results:
+					user = results[0]
+					self._add_user_to_cache(user)
+					return user
 		except:
 			pass
 		return -1

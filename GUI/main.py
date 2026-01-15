@@ -411,6 +411,14 @@ class MainGui(wx.Frame):
 		get_app().cfu(False)
 
 	def onCopy(self,event=None):
+		tl_type = get_app().currentAccount.currentTimeline.type
+		# Handle conversations specially - copy the conversation info
+		if tl_type == "conversations":
+			item = get_app().currentAccount.currentTimeline.statuses[get_app().currentAccount.currentTimeline.index]
+			text = get_app().process_conversation(item)
+			pyperclip.copy(text)
+			speak.speak("Copied")
+			return
 		status = self.get_current_status()
 		if status:
 			# Use appropriate template based on status type
@@ -424,6 +432,14 @@ class MainGui(wx.Frame):
 
 	def OnClose(self, event=None):
 		speak.speak("Exiting.")
+		# Sync timeline positions to server before exiting
+		if get_app().prefs.sync_timeline_position:
+			for account in get_app().accounts:
+				for tl in account.timelines:
+					try:
+						tl.sync_position_to_server()
+					except:
+						pass
 		if platform.system()!="Darwin":
 			self.trayicon.on_exit(event,False)
 		self.Destroy()
@@ -620,6 +636,8 @@ class MainGui(wx.Frame):
 
 	def on_list2_change(self, event):
 		get_app().currentAccount.currentTimeline.index=self.list2.GetSelection()
+		# Track position change for timeline sync
+		get_app().currentAccount.currentTimeline.mark_position_moved()
 		status = self.get_current_status()
 		if status and get_app().prefs.earcon_audio:
 			# Get the actual status (unwrap boosts)
@@ -654,6 +672,14 @@ class MainGui(wx.Frame):
 		self.list2.Thaw()
 
 	def OnView(self,event=None):
+		tl_type = get_app().currentAccount.currentTimeline.type
+		# For notifications, show the notification-specific viewer
+		if tl_type == "notifications":
+			item = get_app().currentAccount.currentTimeline.statuses[get_app().currentAccount.currentTimeline.index]
+			viewer = view.NotificationViewGui(get_app().currentAccount, item)
+			viewer.Show()
+			return
+		# For other timelines, show the post viewer
 		status = self.get_current_status()
 		if status:
 			viewer = view.ViewGui(get_app().currentAccount, status)
@@ -1087,9 +1113,14 @@ class MainGui(wx.Frame):
 	OnPost = OnTweet
 
 	def OnUserTimeline(self, event=None):
-		status = self.get_current_status()
-		if status:
-			misc.user_timeline(get_app().currentAccount, status)
+		account = get_app().currentAccount
+		# Get users from current item (handles both statuses and notifications)
+		u = self._get_users_from_current_item(account)
+		if not u:
+			speak.speak("No user found")
+			return
+		u2 = [i.acct for i in u]
+		chooser.chooser(account, "User Timeline", "Choose user timeline", u2, "userTimeline")
 
 	def OnSearch(self, event=None):
 		s=search.SearchGui(get_app().currentAccount)
@@ -1169,9 +1200,14 @@ class MainGui(wx.Frame):
 		server_filters.show_server_filters_dialog(get_app().currentAccount)
 
 	def OnUserProfile(self, event=None):
-		status = self.get_current_status()
-		if status:
-			misc.user_profile(get_app().currentAccount, status)
+		account = get_app().currentAccount
+		# Get users from current item (handles both statuses and notifications)
+		u = self._get_users_from_current_item(account)
+		if not u:
+			speak.speak("No user found")
+			return
+		u2 = [i.acct for i in u]
+		chooser.chooser(account, "User Profile", "Choose user profile", u2, "profile")
 
 	def OnUrl(self, event=None):
 		status = self.get_current_status()
@@ -1398,11 +1434,9 @@ class MainGui(wx.Frame):
 
 	def OnBlockToggle(self, event=None):
 		"""Toggle block state for a user."""
-		status = self.get_current_status()
-		if not status:
-			return
 		account = get_app().currentAccount
-		u = account.app.get_user_objects_in_status(account, status)
+		# Get users from current item (handles both statuses and notifications)
+		u = self._get_users_from_current_item(account)
 		if not u:
 			speak.speak("No user found")
 			return
@@ -1415,19 +1449,27 @@ class MainGui(wx.Frame):
 	def _toggle_block_user(self, account, user):
 		"""Toggle block state for a specific user."""
 		try:
-			relationships = account.api.account_relationships([user.id])
-			if relationships and len(relationships) > 0:
-				rel = relationships[0]
-				if getattr(rel, 'blocking', False):
-					account.unblock(user.acct)
-					sound.play(account, "unblock")
-					speak.speak(f"Unblocked {user.acct}")
-				else:
-					account.block(user.acct)
-					sound.play(account, "block")
-					speak.speak(f"Blocked {user.acct}")
+			# Check current relationship - platform agnostic
+			blocking = False
+			platform_type = getattr(account.prefs, 'platform_type', 'mastodon')
+
+			if platform_type == 'mastodon' and hasattr(account, 'api') and hasattr(account.api, 'account_relationships'):
+				try:
+					relationships = account.api.account_relationships([user.id])
+					if relationships and len(relationships) > 0:
+						blocking = getattr(relationships[0], 'blocking', False)
+				except:
+					pass
+			elif hasattr(user, 'viewer') and user.viewer:
+				# Bluesky viewer info
+				blocking = getattr(user.viewer, 'blocking', False) or getattr(user.viewer, 'blocked_by', False)
+
+			if blocking:
+				account.unblock(user.id)
+				sound.play(account, "unblock")
+				speak.speak(f"Unblocked {user.acct}")
 			else:
-				account.block(user.acct)
+				account.block(user.id)
 				sound.play(account, "block")
 				speak.speak(f"Blocked {user.acct}")
 		except Exception as error:
@@ -1458,14 +1500,37 @@ class MainGui(wx.Frame):
 			except Exception as error:
 				account.app.handle_error(error, "toggle bookmark")
 
+	def _get_users_from_current_item(self, account):
+		"""Get users from the current item (status or notification)."""
+		tl_type = account.currentTimeline.type
+		item = account.currentTimeline.statuses[account.currentTimeline.index]
+		users = []
+
+		if tl_type == "notifications":
+			# For notifications, include the notification's account (who triggered it)
+			if hasattr(item, 'account') and item.account:
+				users.append(item.account)
+			# Also include users from the status if there is one
+			if hasattr(item, 'status') and item.status:
+				status_users = account.app.get_user_objects_in_status(account, item.status)
+				for u in status_users:
+					if u not in users and u.id != account.me.id:
+						users.append(u)
+		else:
+			# For regular statuses
+			status = self.get_current_status()
+			if status:
+				users = account.app.get_user_objects_in_status(account, status)
+
+		# Filter out self
+		users = [u for u in users if u.id != account.me.id]
+		return users
+
 	def OnFollowToggle(self, event=None):
 		"""Toggle follow state for a user - checks relationship and follows/unfollows accordingly."""
-		status = self.get_current_status()
-		if not status:
-			return
 		account = get_app().currentAccount
-		# Get user to follow/unfollow
-		u = account.app.get_user_objects_in_status(account, status)
+		# Get users from current item (handles both statuses and notifications)
+		u = self._get_users_from_current_item(account)
 		if not u:
 			speak.speak("No user found")
 			return
@@ -1480,21 +1545,27 @@ class MainGui(wx.Frame):
 	def _toggle_follow_user(self, account, user):
 		"""Toggle follow state for a specific user."""
 		try:
-			# Check current relationship
-			relationships = account.api.account_relationships([user.id])
-			if relationships and len(relationships) > 0:
-				rel = relationships[0]
-				if getattr(rel, 'following', False):
-					account.unfollow(user.acct)
-					sound.play(account, "unfollow")
-					speak.speak(f"Unfollowed {user.acct}")
-				else:
-					account.follow(user.acct)
-					sound.play(account, "follow")
-					speak.speak(f"Followed {user.acct}")
+			# Check current relationship - platform agnostic
+			following = False
+			platform_type = getattr(account.prefs, 'platform_type', 'mastodon')
+
+			if platform_type == 'mastodon' and hasattr(account, 'api') and hasattr(account.api, 'account_relationships'):
+				try:
+					relationships = account.api.account_relationships([user.id])
+					if relationships and len(relationships) > 0:
+						following = getattr(relationships[0], 'following', False)
+				except:
+					pass
+			elif hasattr(user, 'viewer') and user.viewer:
+				# Bluesky viewer info
+				following = getattr(user.viewer, 'following', False)
+
+			if following:
+				account.unfollow(user.id)
+				sound.play(account, "unfollow")
+				speak.speak(f"Unfollowed {user.acct}")
 			else:
-				# No relationship data, assume not following
-				account.follow(user.acct)
+				account.follow(user.id)
 				sound.play(account, "follow")
 				speak.speak(f"Followed {user.acct}")
 		except Exception as error:
@@ -1532,12 +1603,9 @@ class MainGui(wx.Frame):
 
 	def OnMuteToggle(self, event=None):
 		"""Toggle mute state for a user - checks relationship and mutes/unmutes accordingly."""
-		status = self.get_current_status()
-		if not status:
-			return
 		account = get_app().currentAccount
-		# Get user to mute/unmute
-		u = account.app.get_user_objects_in_status(account, status)
+		# Get users from current item (handles both statuses and notifications)
+		u = self._get_users_from_current_item(account)
 		if not u:
 			speak.speak("No user found")
 			return
@@ -1552,22 +1620,34 @@ class MainGui(wx.Frame):
 	def _toggle_mute_user(self, account, user):
 		"""Toggle mute state for a specific user."""
 		try:
-			# Check current relationship
-			relationships = account.api.account_relationships([user.id])
-			if relationships and len(relationships) > 0:
-				rel = relationships[0]
-				if getattr(rel, 'muting', False):
-					account.unmute(user.id)
-					sound.play(account, "unmute")
-					speak.speak(f"Unmuted {user.acct}")
-				else:
-					# Use mute dialog for options
+			# Check current relationship - platform agnostic
+			muting = False
+			platform_type = getattr(account.prefs, 'platform_type', 'mastodon')
+
+			if platform_type == 'mastodon' and hasattr(account, 'api') and hasattr(account.api, 'account_relationships'):
+				try:
+					relationships = account.api.account_relationships([user.id])
+					if relationships and len(relationships) > 0:
+						muting = getattr(relationships[0], 'muting', False)
+				except:
+					pass
+			elif hasattr(user, 'viewer') and user.viewer:
+				# Bluesky viewer info
+				muting = getattr(user.viewer, 'muted', False)
+
+			if muting:
+				account.unmute(user.id)
+				sound.play(account, "unmute")
+				speak.speak(f"Unmuted {user.acct}")
+			else:
+				# For Mastodon, use mute dialog for options; for Bluesky, mute directly
+				if platform_type == 'mastodon':
 					from . import mute_dialog
 					mute_dialog.show_mute_dialog(account, user)
-			else:
-				# No relationship data, show mute dialog
-				from . import mute_dialog
-				mute_dialog.show_mute_dialog(account, user)
+				else:
+					account.mute(user.id)
+					sound.play(account, "mute")
+					speak.speak(f"Muted {user.acct}")
 		except Exception as error:
 			account.app.handle_error(error, "toggle mute")
 

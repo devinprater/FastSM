@@ -602,23 +602,58 @@ class mastodon(object):
 			return self._platform.boost(id)
 		self.api.status_reblog(id=id)
 
+	def unboost(self, id):
+		"""Unboost (unreblog) a status"""
+		# Use platform backend if available
+		if hasattr(self, '_platform') and self._platform:
+			return self._platform.unboost(id)
+		self.api.status_unreblog(id=id)
+
 	def quote(self, status, text, visibility=None):
 		"""Quote a status - try native quote, fallback to URL"""
-		try:
-			# Use platform backend if available
-			if hasattr(self, '_platform') and self._platform:
-				return self._platform.quote(status, text, visibility=visibility)
+		# Use platform backend if available
+		if hasattr(self, '_platform') and self._platform:
+			return self._platform.quote(status, text, visibility=visibility)
 
-			if visibility is None:
-				visibility = self.default_visibility
-			# Try native quote (Mastodon 4.0+)
-			return self.api.status_post(status=text, quote_id=status.id, visibility=visibility)
+		if visibility is None:
+			visibility = self.default_visibility
+
+		status_id = str(status.id)
+		result = None
+		quote_succeeded = False
+
+		# Method 1: Try native Mastodon 4.5+ quoting via direct API call
+		try:
+			params = {
+				'status': text,
+				'visibility': visibility,
+				'quoted_status_id': status_id
+			}
+			result = self.api._Mastodon__api_request('POST', '/api/v1/statuses', params)
+			# Verify the quote was actually attached
+			if result and ('quote' in result or 'quote_id' in result):
+				quote_succeeded = True
 		except:
-			# Fallback: include link to original post
+			pass
+
+		# Method 2: Try Mastodon.py's quote_id (for Fedibird/compatible servers)
+		if not quote_succeeded:
+			result = None
+			try:
+				result = self.api.status_post(status=text, quote_id=status_id, visibility=visibility)
+				if result and (hasattr(result, 'quote') and result.quote):
+					quote_succeeded = True
+			except:
+				pass
+
+		# Method 3: Fallback - include link to original post
+		if not quote_succeeded:
 			original_url = getattr(status, 'url', None)
 			if not original_url:
-				original_url = f"{self.prefs.instance_url}/@{status.account.acct}/{status.id}"
-			return self.api.status_post(status=f"{text}\n\n{original_url}", visibility=visibility)
+				original_url = f"{self.prefs.instance_url}/@{status.account.acct}/{status_id}"
+			result = self.api.status_post(status=f"{text}\n\n{original_url}", visibility=visibility)
+
+		return result
 
 	def edit(self, status_id, text, visibility=None, spoiler_text=None, media_ids=None, **kwargs):
 		"""Edit an existing status"""

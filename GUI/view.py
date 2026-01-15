@@ -53,7 +53,10 @@ class ViewGui(wx.Dialog):
 			pass
 
 		# Always show full text in view dialog, ignoring CW preference
-		self.post_text = self.account.app.process_status(self.status, True, ignore_cw=True)
+		# Use html_to_text_for_edit for proper newline preservation
+		content = getattr(self.status, 'content', '')
+		mentions = getattr(self.status, 'mentions', [])
+		self.post_text = self.account.app.html_to_text_for_edit(content, mentions)
 
 		# Update display_name to match the current self.status.account (may have changed for boosts)
 		display_name = getattr(self.status.account, 'display_name', '') or self.status.account.acct
@@ -501,11 +504,19 @@ class UserViewGui(wx.Dialog):
 
 	def OnFollow(self, event):
 		user = self.users[self.index]
-		misc.follow_user(self.account, user.acct)
+		try:
+			self.account.follow(user.id)
+			sound.play(self.account, "follow")
+		except Exception as error:
+			self.account.app.handle_error(error, "Follow " + user.acct)
 
 	def OnUnfollow(self, event):
 		user = self.users[self.index]
-		misc.unfollow_user(self.account, user.acct)
+		try:
+			self.account.unfollow(user.id)
+			sound.play(self.account, "unfollow")
+		except Exception as error:
+			self.account.app.handle_error(error, "Unfollow " + user.acct)
 
 	def OnMute(self, event):
 		user = self.users[self.index]
@@ -632,6 +643,180 @@ class ViewTextGui(wx.Dialog):
 		self.main_box.Add(self.close, 0, wx.ALL, 10)
 		self.panel.Layout()
 		self.text.SetFocus()
+
+	def OnClose(self, event):
+		self.Destroy()
+
+
+class NotificationViewGui(wx.Dialog):
+	"""Dialog for viewing notification details."""
+
+	# Human-readable notification type labels
+	NOTIFICATION_TYPES = {
+		'follow': 'Follow',
+		'follow_request': 'Follow Request',
+		'favourite': 'Favourited your post',
+		'reblog': 'Boosted your post',
+		'mention': 'Mentioned you',
+		'poll': 'Poll ended',
+		'status': 'Posted',
+		'update': 'Edited a post',
+		'admin.sign_up': 'New user signed up',
+		'admin.report': 'New report',
+		'like': 'Liked your post',  # Bluesky
+		'repost': 'Reposted your post',  # Bluesky
+		'reply': 'Replied to your post',  # Bluesky
+		'quote': 'Quoted your post',  # Bluesky
+	}
+
+	def __init__(self, account, notification):
+		self.account = account
+		self.notification = notification
+
+		# Get notification details
+		notif_type = getattr(notification, 'type', 'unknown')
+		type_label = self.NOTIFICATION_TYPES.get(notif_type, notif_type.replace('_', ' ').title())
+
+		# Get the user who triggered the notification
+		notif_account = getattr(notification, 'account', None)
+		if notif_account:
+			display_name = getattr(notif_account, 'display_name', '') or getattr(notif_account, 'acct', 'Unknown')
+			acct = getattr(notif_account, 'acct', '')
+		else:
+			display_name = 'Unknown'
+			acct = ''
+
+		title = f"Notification: {type_label}"
+		wx.Dialog.__init__(self, None, title=title, size=(350, 200))
+
+		self.Bind(wx.EVT_CLOSE, self.OnClose)
+		self.panel = wx.Panel(self)
+		self.main_box = wx.BoxSizer(wx.VERTICAL)
+
+		# Notification details text
+		self.details_label = wx.StaticText(self.panel, -1, "Notification &Details")
+		self.details = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size)
+		self.main_box.Add(self.details, 0, wx.ALL, 10)
+		self.details.SetFocus()
+
+		# Build details text
+		created_at = getattr(notification, 'created_at', None)
+		time_str = self.account.app.parse_date(created_at) if created_at else 'Unknown'
+
+		details_text = f"Type: {type_label}\r\n"
+		details_text += f"From: {display_name}"
+		if acct:
+			details_text += f" (@{acct})"
+		details_text += f"\r\nTime: {time_str}"
+
+		# Add notification-specific details
+		if notif_type == 'follow':
+			details_text += "\r\n\r\nThis user is now following you."
+		elif notif_type == 'follow_request':
+			details_text += "\r\n\r\nThis user has requested to follow you."
+		elif notif_type in ('favourite', 'like'):
+			details_text += "\r\n\r\nThey liked your post."
+		elif notif_type in ('reblog', 'repost'):
+			details_text += "\r\n\r\nThey boosted/reposted your post."
+		elif notif_type == 'mention':
+			details_text += "\r\n\r\nYou were mentioned in a post."
+		elif notif_type == 'poll':
+			details_text += "\r\n\r\nA poll you voted in or created has ended."
+
+		self.details.SetValue(details_text)
+
+		# Related post text (if any)
+		self.status = getattr(notification, 'status', None)
+		if self.status:
+			self.post_label = wx.StaticText(self.panel, -1, "&Post Content")
+			if self.account.app.prefs.wrap:
+				self.post_text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE, size=text_box_size)
+			else:
+				self.post_text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size)
+			self.main_box.Add(self.post_text, 0, wx.ALL, 10)
+
+			# Get post content
+			content = getattr(self.status, 'content', '')
+			mentions = getattr(self.status, 'mentions', [])
+			post_content = self.account.app.html_to_text_for_edit(content, mentions)
+			self.post_text.SetValue(post_content)
+
+			# Show spoiler if present
+			spoiler = getattr(self.status, 'spoiler_text', '')
+			if spoiler:
+				self.post_text.SetValue(f"[CW: {spoiler}]\r\n\r\n{post_content}")
+
+		# Action buttons
+		if notif_account:
+			self.view_profile = wx.Button(self.panel, -1, "View &Profile")
+			self.view_profile.Bind(wx.EVT_BUTTON, self.OnViewProfile)
+			self.main_box.Add(self.view_profile, 0, wx.ALL, 10)
+
+		if self.status:
+			self.view_post = wx.Button(self.panel, -1, "&View Full Post")
+			self.view_post.Bind(wx.EVT_BUTTON, self.OnViewPost)
+			self.main_box.Add(self.view_post, 0, wx.ALL, 10)
+
+			self.reply = wx.Button(self.panel, -1, "&Reply")
+			self.reply.Bind(wx.EVT_BUTTON, self.OnReply)
+			self.main_box.Add(self.reply, 0, wx.ALL, 10)
+
+		# Follow request actions
+		if notif_type == 'follow_request':
+			self.accept = wx.Button(self.panel, -1, "&Accept Request")
+			self.accept.Bind(wx.EVT_BUTTON, self.OnAcceptFollowRequest)
+			self.main_box.Add(self.accept, 0, wx.ALL, 10)
+
+			self.reject = wx.Button(self.panel, -1, "Re&ject Request")
+			self.reject.Bind(wx.EVT_BUTTON, self.OnRejectFollowRequest)
+			self.main_box.Add(self.reject, 0, wx.ALL, 10)
+
+		self.close = wx.Button(self.panel, wx.ID_CANCEL, "&Close")
+		self.close.Bind(wx.EVT_BUTTON, self.OnClose)
+		self.main_box.Add(self.close, 0, wx.ALL, 10)
+
+		if platform.system() == "Darwin":
+			self.details.SetValue(self.details.GetValue().replace("\r", ""))
+			if self.status:
+				self.post_text.SetValue(self.post_text.GetValue().replace("\r", ""))
+
+		self.panel.Layout()
+
+	def OnViewProfile(self, event):
+		notif_account = getattr(self.notification, 'account', None)
+		if notif_account:
+			g = UserViewGui(self.account, [notif_account], "User Profile")
+			g.Show()
+
+	def OnViewPost(self, event):
+		if self.status:
+			v = ViewGui(self.account, self.status)
+			v.Show()
+
+	def OnReply(self, event):
+		if self.status:
+			misc.reply(self.account, self.status)
+
+	def OnAcceptFollowRequest(self, event):
+		import speak
+		notif_account = getattr(self.notification, 'account', None)
+		if notif_account:
+			try:
+				self.account.api.follow_request_authorize(id=notif_account.id)
+				sound.play(self.account, "follow")
+				speak.speak("Follow request accepted")
+			except Exception as error:
+				self.account.app.handle_error(error, "accept follow request")
+
+	def OnRejectFollowRequest(self, event):
+		import speak
+		notif_account = getattr(self.notification, 'account', None)
+		if notif_account:
+			try:
+				self.account.api.follow_request_reject(id=notif_account.id)
+				speak.speak("Follow request rejected")
+			except Exception as error:
+				self.account.app.handle_error(error, "reject follow request")
 
 	def OnClose(self, event):
 		self.Destroy()
