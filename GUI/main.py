@@ -205,9 +205,6 @@ class MainGui(wx.Frame):
 		self.main_box.Add(self.list2, 0, wx.ALL, 10)
 		self.list2.Bind(wx.EVT_LISTBOX, self.on_list2_change)
 		self.list2.Bind(wx.EVT_CONTEXT_MENU, self.OnPostContextMenu)
-		# On Mac, restore focus to list2 when window is activated (e.g., after dialogs close)
-		if platform.system() == "Darwin":
-			self.Bind(wx.EVT_ACTIVATE, self.OnActivate)
 		self.panel.Layout()
 
 	def register_keys(self):
@@ -262,13 +259,6 @@ class MainGui(wx.Frame):
 				self.on_list_change(None)
 				self.list2.SetSelection(get_app().currentAccount.currentTimeline.index)
 				self.on_list2_change(None)
-
-	def OnActivate(self, event):
-		"""Handle window activation on Mac to restore keyboard focus after dialogs close."""
-		if event.GetActive():
-			# Small delay to let the window fully activate before setting focus
-			wx.CallAfter(self.list2.SetFocus)
-		event.Skip()
 
 	def OnReadme(self,event=None):
 		webbrowser.open("https://github.com/masonasons/FastSM/blob/main/README.md")
