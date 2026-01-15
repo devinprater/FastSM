@@ -173,17 +173,6 @@ class TweetGui(wx.Dialog):
 				self.poll = wx.Button(self.panel, wx.ID_DEFAULT, "Poll")
 				self.poll.Bind(wx.EVT_BUTTON, self.Poll)
 				self.main_box.Add(self.poll, 0, wx.ALL, 10)
-		if self.type == "reply" and self.status is not None and hasattr(self.status, 'mentions') and len(self.status.mentions) > 0:
-			self.users = self.account.app.get_user_objects_in_status(self.account, self.status, True, True)
-			self.list_label = wx.StaticText(self.panel, -1, label="&Users to include in reply")
-			self.list = wx.CheckListBox(self.panel, -1)
-			self.main_box.Add(self.list, 0, wx.ALL, 10)
-			for i in self.users:
-				display_name = getattr(i, 'display_name', '') or i.acct
-				self.list.Append(display_name + " (@" + i.acct + ")")
-				self.list.Check(self.list.GetCount()-1, True)
-				self.list.SetSelection(0)
-				self.list.Bind(wx.EVT_CHECKLISTBOX, self.OnToggle)
 		if self.type == "post" or self.type == "reply":
 			self.thread = wx.CheckBox(self.panel, -1, "&Thread mode")
 			self.main_box.Add(self.thread, 0, wx.ALL, 10)
@@ -288,13 +277,6 @@ class TweetGui(wx.Dialog):
 			if not mods:
 				self.Tweet(None)
 		event.Skip()
-
-	def OnToggle(self, event):
-		index = event.GetInt()
-		if self.list.IsChecked(index):
-			speak.speak("Checked")
-		else:
-			speak.speak("Unchecked.")
 
 	def Autocomplete(self, event):
 		if self.type == "message":
@@ -480,14 +462,6 @@ class TweetGui(wx.Dialog):
 						status = self.account.quote(self.status, self.text.GetValue(), visibility=visibility)
 					else:
 						self.account.app.prefs.replies_sent += 1
-						# Build mention string for excluded users
-						exclude_mentions = []
-						if hasattr(self, "list"):
-							index = 0
-							for i in self.users:
-								if not self.list.IsChecked(index):
-									exclude_mentions.append(i.acct)
-								index += 1
 						# Use original status ID if available (for mentions timeline)
 						# or resolve remote status ID (for instance timelines)
 						reply_to_id = getattr(self.status, '_original_status_id', None)
