@@ -6,7 +6,7 @@ import speak
 import re
 
 out = o.Output()
-handle = None
+handles = []  # List of active sound handles for concurrent playback
 player = None
 
 def return_url(url):
@@ -58,18 +58,32 @@ def has_audio_attachment(status):
 			return True
 	return False
 
+def _cleanup_finished_handles():
+	"""Remove handles that have finished playing."""
+	global handles
+	active = []
+	for h in handles:
+		try:
+			# Check if still playing (is_playing property or similar)
+			if h.is_playing:
+				active.append(h)
+			else:
+				try:
+					h.free()
+				except sound_lib.main.BassError:
+					pass
+		except (sound_lib.main.BassError, AttributeError):
+			# Handle is invalid or already freed, skip it
+			pass
+	handles = active
+
 def play(account, filename, pack="", wait=False):
-	global handle
+	global handles
 	app = account.app
-	if handle != None:
-		try:
-			handle.stop()
-		except sound_lib.main.BassError:
-			pass
-		try:
-			handle.free()
-		except sound_lib.main.BassError:
-			pass
+
+	# Clean up finished handles before playing new sound
+	_cleanup_finished_handles()
+
 	if os.path.exists(app.confpath + "/sounds/" + account.prefs.soundpack + "/" + filename + ".ogg"):
 		path = app.confpath + "/sounds/" + account.prefs.soundpack + "/" + filename + ".ogg"
 	elif os.path.exists("sounds/" + account.prefs.soundpack + "/" + filename + ".ogg"):
@@ -89,6 +103,7 @@ def play(account, filename, pack="", wait=False):
 			handle.play_blocking()
 		else:
 			handle.play()
+			handles.append(handle)
 	except sound_lib.main.BassError:
 		pass
 
@@ -101,6 +116,7 @@ def play_url(url):
 		speak.speak("Could not play audio.")
 
 def stop():
+	"""Stop media player (URL streams)."""
 	global player
 	if player is not None:
 		try:
@@ -109,3 +125,17 @@ def stop():
 		except:
 			pass
 		player = None
+
+def stop_all():
+	"""Stop all sounds including UI sounds and media player."""
+	global handles, player
+	# Stop media player
+	stop()
+	# Stop all UI sound handles
+	for h in handles:
+		try:
+			h.stop()
+			h.free()
+		except sound_lib.main.BassError:
+			pass
+	handles = []
