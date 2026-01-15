@@ -703,3 +703,131 @@ def play_external(status):
 		sound.play_url(audio_url)
 	else:
 		speak.speak("No audio.")
+
+
+def get_hashtags_from_status(status):
+	"""Extract hashtags from a status.
+
+	Returns list of hashtag names (without #).
+	"""
+	hashtags = []
+
+	# For boosts, get hashtags from the boosted post
+	if hasattr(status, 'reblog') and status.reblog:
+		status = status.reblog
+
+	# Check for tags attribute (Mastodon provides this directly)
+	tags = getattr(status, 'tags', None)
+	if tags:
+		for tag in tags:
+			name = getattr(tag, 'name', None)
+			if name:
+				hashtags.append(name)
+
+	# If no tags attribute, try to extract from content using regex
+	if not hashtags:
+		import re
+		content = getattr(status, 'content', '') or getattr(status, 'text', '')
+		if content:
+			# Find hashtags in content (handles #tag format)
+			found = re.findall(r'#(\w+)', get_app().strip_html(content))
+			hashtags.extend(found)
+
+	return list(dict.fromkeys(hashtags))  # Remove duplicates while preserving order
+
+
+def follow_hashtag(account, hashtag):
+	"""Follow a hashtag."""
+	# Check platform type - only Mastodon supports this
+	platform_type = getattr(account.prefs, 'platform_type', 'mastodon')
+	if platform_type != 'mastodon':
+		speak.speak("Hashtag following is only available on Mastodon")
+		return
+
+	try:
+		if hasattr(account, '_platform') and account._platform:
+			success = account._platform.follow_hashtag(hashtag)
+			if success:
+				sound.play(account, "follow")
+				speak.speak(f"Following #{hashtag}")
+			else:
+				speak.speak(f"Failed to follow #{hashtag}")
+		else:
+			account.api.tag_follow(hashtag)
+			sound.play(account, "follow")
+			speak.speak(f"Following #{hashtag}")
+	except Exception as error:
+		account.app.handle_error(error, f"Follow hashtag #{hashtag}")
+
+
+def unfollow_hashtag(account, hashtag):
+	"""Unfollow a hashtag."""
+	# Check platform type - only Mastodon supports this
+	platform_type = getattr(account.prefs, 'platform_type', 'mastodon')
+	if platform_type != 'mastodon':
+		speak.speak("Hashtag following is only available on Mastodon")
+		return
+
+	try:
+		if hasattr(account, '_platform') and account._platform:
+			success = account._platform.unfollow_hashtag(hashtag)
+			if success:
+				sound.play(account, "unfollow")
+				speak.speak(f"Unfollowed #{hashtag}")
+			else:
+				speak.speak(f"Failed to unfollow #{hashtag}")
+		else:
+			account.api.tag_unfollow(hashtag)
+			sound.play(account, "unfollow")
+			speak.speak(f"Unfollowed #{hashtag}")
+	except Exception as error:
+		account.app.handle_error(error, f"Unfollow hashtag #{hashtag}")
+
+
+def hashtag_chooser(account, status, action="follow"):
+	"""Show dialog to select a hashtag from a post.
+
+	Args:
+		account: The account
+		status: The status to extract hashtags from
+		action: 'follow' or 'unfollow'
+	"""
+	hashtags = get_hashtags_from_status(status)
+	if not hashtags:
+		speak.speak("No hashtags found in this post")
+		return
+
+	# Format with # prefix for display
+	display_hashtags = [f"#{tag}" for tag in hashtags]
+
+	if action == "follow":
+		chooser.chooser(account, "Follow Hashtag", "Select hashtag to follow", display_hashtags, "followHashtag")
+	else:
+		chooser.chooser(account, "Unfollow Hashtag", "Select hashtag to unfollow", display_hashtags, "unfollowHashtag")
+
+
+def show_followed_hashtags(account):
+	"""Show dialog with followed hashtags."""
+	# Check platform type - only Mastodon supports this
+	platform_type = getattr(account.prefs, 'platform_type', 'mastodon')
+	if platform_type != 'mastodon':
+		speak.speak("Hashtag following is only available on Mastodon")
+		return
+
+	try:
+		if hasattr(account, '_platform') and account._platform:
+			hashtags = account._platform.get_followed_hashtags()
+		else:
+			tags = account.api.followed_tags()
+			hashtags = [{'name': getattr(t, 'name', ''), 'following': True} for t in tags]
+
+		if not hashtags:
+			speak.speak("You are not following any hashtags")
+			return
+
+		# Show in a view dialog
+		from . import hashtag_dialog
+		dialog = hashtag_dialog.FollowedHashtagsDialog(account, hashtags)
+		dialog.Show()
+	except Exception as error:
+		account.app.handle_error(error, "Get followed hashtags")

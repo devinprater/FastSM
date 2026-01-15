@@ -903,3 +903,71 @@ class MastodonAccount(PlatformAccount):
             return result
         except MastodonError:
             return []
+
+    # ============ Hashtag Methods ============
+
+    def follow_hashtag(self, hashtag: str) -> bool:
+        """Follow a hashtag. Posts with this hashtag will appear in home timeline.
+
+        Args:
+            hashtag: The hashtag name (without #)
+        """
+        try:
+            # Remove # if present
+            hashtag = hashtag.lstrip('#')
+            self.api.tag_follow(hashtag)
+            return True
+        except MastodonError:
+            return False
+
+    def unfollow_hashtag(self, hashtag: str) -> bool:
+        """Unfollow a hashtag.
+
+        Args:
+            hashtag: The hashtag name (without #)
+        """
+        try:
+            # Remove # if present
+            hashtag = hashtag.lstrip('#')
+            self.api.tag_unfollow(hashtag)
+            return True
+        except MastodonError:
+            return False
+
+    def get_followed_hashtags(self, limit: int = 100) -> List[dict]:
+        """Get list of hashtags the user follows.
+
+        Returns list of dicts with 'name', 'url', 'following' keys.
+        """
+        try:
+            tags = self.api.followed_tags(limit=min(limit, 200))
+            result = []
+            for tag in tags:
+                result.append({
+                    'name': getattr(tag, 'name', ''),
+                    'url': getattr(tag, 'url', ''),
+                    'following': getattr(tag, 'following', True)
+                })
+            return result
+        except MastodonError:
+            return []
+
+    def get_hashtag_info(self, hashtag: str) -> Optional[dict]:
+        """Get information about a hashtag including whether user follows it.
+
+        Args:
+            hashtag: The hashtag name (without #)
+
+        Returns dict with 'name', 'url', 'following' keys or None on error.
+        """
+        try:
+            # Remove # if present
+            hashtag = hashtag.lstrip('#')
+            tag = self.api.tag(hashtag)
+            return {
+                'name': getattr(tag, 'name', hashtag),
+                'url': getattr(tag, 'url', ''),
+                'following': getattr(tag, 'following', False)
+            }
+        except MastodonError:
+            return None

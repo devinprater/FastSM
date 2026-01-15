@@ -8,7 +8,7 @@ from application import get_app
 import wx
 from keyboard_handler.wx_handler import WXKeyboardHandler
 import speak
-from . import account_options, accounts, chooser, custom_timelines, explore_dialog, invisible, lists, misc, options, profile, search, timeline_filter, timelines, tray, tweet, view
+from . import account_options, accounts, chooser, custom_timelines, explore_dialog, hashtag_dialog, invisible, lists, misc, options, profile, search, timeline_filter, timelines, tray, tweet, view
 import sound
 import timeline
 import threading
@@ -50,6 +50,8 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnBlockedUsers, m_blocked)
 		m_muted = menu.Append(-1, "List Muted Users", "muted")
 		self.Bind(wx.EVT_MENU, self.OnMutedUsers, m_muted)
+		m_followed_hashtags = menu.Append(-1, "Followed Hashtags", "followed_hashtags")
+		self.Bind(wx.EVT_MENU, self.OnFollowedHashtags, m_followed_hashtags)
 		m_options = menu.Append(wx.ID_PREFERENCES, "Global Options\tCtrl+,", "options")
 		self.Bind(wx.EVT_MENU, self.OnOptions, m_options)
 		m_account_options = menu.Append(-1, "Account options\tCtrl+Shift+,", "account_options")
@@ -581,6 +583,9 @@ class MainGui(wx.Frame):
 	def OnMutedUsers(self,event=None):
 		misc.muted_users(get_app().currentAccount)
 
+	def OnFollowedHashtags(self, event=None):
+		misc.show_followed_hashtags(get_app().currentAccount)
+
 	def OnMutualFollowing(self,event=None):
 		misc.mutual_following(get_app().currentAccount)
 
@@ -881,6 +886,18 @@ class MainGui(wx.Frame):
 				m_block = menu.Append(-1, "Unblock user" if is_blocking else "Block user")
 				self.Bind(wx.EVT_MENU, self.OnBlockToggle, m_block)
 
+				# Check for hashtags in notification status - only for Mastodon
+				if platform_type == 'mastodon' and notif_status:
+					hashtags = misc.get_hashtags_from_status(notif_status)
+					if hashtags:
+						menu.AppendSeparator()
+
+						m_follow_hashtag = menu.Append(-1, "Follow hashtag")
+						self.Bind(wx.EVT_MENU, self.OnFollowHashtag, m_follow_hashtag)
+
+						m_unfollow_hashtag = menu.Append(-1, "Unfollow hashtag")
+						self.Bind(wx.EVT_MENU, self.OnUnfollowHashtag, m_unfollow_hashtag)
+
 		else:
 			# Standard post menu for all other timelines
 			status_to_check = item.reblog if hasattr(item, 'reblog') and item.reblog else item
@@ -975,6 +992,19 @@ class MainGui(wx.Frame):
 
 			m_block = menu.Append(-1, "Unblock user" if is_blocking else "Block user")
 			self.Bind(wx.EVT_MENU, self.OnBlockToggle, m_block)
+
+			# Check for hashtags in post - only show hashtag options if post has hashtags
+			# Only for Mastodon - Bluesky doesn't support hashtag following
+			if platform_type == 'mastodon':
+				hashtags = misc.get_hashtags_from_status(status_to_check)
+				if hashtags:
+					menu.AppendSeparator()
+
+					m_follow_hashtag = menu.Append(-1, "Follow hashtag")
+					self.Bind(wx.EVT_MENU, self.OnFollowHashtag, m_follow_hashtag)
+
+					m_unfollow_hashtag = menu.Append(-1, "Unfollow hashtag")
+					self.Bind(wx.EVT_MENU, self.OnUnfollowHashtag, m_unfollow_hashtag)
 
 			menu.AppendSeparator()
 
@@ -1529,6 +1559,24 @@ class MainGui(wx.Frame):
 		if hasattr(status_to_check, 'poll') and status_to_check.poll:
 			from . import poll_dialog
 			poll_dialog.show_poll_dialog(get_app().currentAccount, status_to_check)
+
+	def OnFollowHashtag(self, event=None):
+		"""Show dialog to follow a hashtag from the current post."""
+		status = self.get_current_status()
+		if not status:
+			return
+		# Get the actual status (unwrap boosts)
+		status_to_check = status.reblog if hasattr(status, 'reblog') and status.reblog else status
+		misc.hashtag_chooser(get_app().currentAccount, status_to_check, "follow")
+
+	def OnUnfollowHashtag(self, event=None):
+		"""Show dialog to unfollow a hashtag from the current post."""
+		status = self.get_current_status()
+		if not status:
+			return
+		# Get the actual status (unwrap boosts)
+		status_to_check = status.reblog if hasattr(status, 'reblog') and status.reblog else status
+		misc.hashtag_chooser(get_app().currentAccount, status_to_check, "unfollow")
 
 global window
 window=MainGui(application.name+" "+application.version)

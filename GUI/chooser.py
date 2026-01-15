@@ -15,6 +15,7 @@ class ChooseGui(wx.Dialog):
 	TYPE_BLOCK_TOGGLE="block_toggle"
 	TYPE_FOLLOW="follow"
 	TYPE_FOLLOW_TOGGLE="follow_toggle"
+	TYPE_FOLLOW_HASHTAG="followHashtag"
 	TYPE_LIST = "list"
 	TYPE_LIST_R="listr"
 	TYPE_MUTE="mute"
@@ -22,6 +23,7 @@ class ChooseGui(wx.Dialog):
 	TYPE_PROFILE = "profile"
 	TYPE_UNBLOCK="unblock"
 	TYPE_UNFOLLOW="unfollow"
+	TYPE_UNFOLLOW_HASHTAG="unfollowHashtag"
 	TYPE_UNMUTE="unmute"
 	TYPE_URL="url"
 	TYPE_USER_TIMELINE="userTimeline"
@@ -151,6 +153,14 @@ class ChooseGui(wx.Dialog):
 						sound.play(self.account, "block")
 			except MastodonError as e:
 				self.account.app.handle_error(e, "Toggle block")
+		elif self.type==self.TYPE_FOLLOW_HASHTAG:
+			# Follow a hashtag - strip # prefix if present
+			hashtag = self.returnvalue.lstrip('#')
+			misc.follow_hashtag(self.account, hashtag)
+		elif self.type==self.TYPE_UNFOLLOW_HASHTAG:
+			# Unfollow a hashtag - strip # prefix if present
+			hashtag = self.returnvalue.lstrip('#')
+			misc.unfollow_hashtag(self.account, hashtag)
 
 	def _show_filter_dialog(self, username):
 		"""Show a dialog to select filter type for user timelines."""
