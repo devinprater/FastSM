@@ -344,13 +344,12 @@ def following(account, id=-1):
 
 
 def mutual_following(account):
-	# Mastodon doesn't have a direct mutual following endpoint
-	# We'd need to compare followers and following lists
+	# Use account method which respects user_limit setting
 	try:
-		followers_list = list(account.api.account_followers(id=account.me.id, limit=80))
-		following_list = list(account.api.account_following(id=account.me.id, limit=80))
-		follower_ids = {f.id for f in followers_list}
-		mutual = [f for f in following_list if f.id in follower_ids]
+		mutual = account.mutual_following()
+		if not mutual:
+			speak.speak("No mutual followers found")
+			return
 		flw = view.UserViewGui(account, mutual, "Mutual followers")
 		flw.Show()
 	except Exception as error:
@@ -358,12 +357,12 @@ def mutual_following(account):
 
 
 def not_following_me(account):
-	# Find users I follow who don't follow me back
+	# Use account method which respects user_limit setting
 	try:
-		followers_list = list(account.api.account_followers(id=account.me.id, limit=80))
-		following_list = list(account.api.account_following(id=account.me.id, limit=80))
-		follower_ids = {f.id for f in followers_list}
-		not_following = [f for f in following_list if f.id not in follower_ids]
+		not_following = account.not_following_me()
+		if not not_following:
+			speak.speak("All users you follow also follow you")
+			return
 		flw = view.UserViewGui(account, not_following, "Users not following me")
 		flw.Show()
 	except Exception as error:
@@ -371,12 +370,12 @@ def not_following_me(account):
 
 
 def not_following(account):
-	# Find users who follow me that I don't follow back
+	# Use account method which respects user_limit setting
 	try:
-		followers_list = list(account.api.account_followers(id=account.me.id, limit=80))
-		following_list = list(account.api.account_following(id=account.me.id, limit=80))
-		following_ids = {f.id for f in following_list}
-		not_following = [f for f in followers_list if f.id not in following_ids]
+		not_following = account.not_following()
+		if not not_following:
+			speak.speak("You follow all your followers")
+			return
 		flw = view.UserViewGui(account, not_following, "Users I don't follow")
 		flw.Show()
 	except Exception as error:

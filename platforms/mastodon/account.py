@@ -749,25 +749,63 @@ class MastodonAccount(PlatformAccount):
         except MastodonError:
             return False
 
-    def get_followers(self, user_id: str, limit: int = 80) -> List[UniversalUser]:
-        """Get followers of a user."""
+    def get_followers(self, user_id: str, limit: int = 80, max_pages: int = 1) -> List[UniversalUser]:
+        """Get followers of a user.
+
+        Args:
+            user_id: The user ID to get followers for
+            limit: Maximum users per page (default 80)
+            max_pages: Maximum number of API calls/pages to fetch (default 1)
+        """
         try:
-            followers = self.api.account_followers(id=user_id, limit=limit)
-            users = self._convert_users(followers)
+            all_users = []
+            page = self.api.account_followers(id=user_id, limit=limit)
+            users = self._convert_users(page)
             for user in users:
                 self.user_cache.add_user(user)
-            return users
+            all_users.extend(users)
+
+            page_count = 1
+            while page and page_count < max_pages:
+                page = self.api.fetch_next(page)
+                if page:
+                    users = self._convert_users(page)
+                    for user in users:
+                        self.user_cache.add_user(user)
+                    all_users.extend(users)
+                    page_count += 1
+
+            return all_users
         except MastodonError:
             return []
 
-    def get_following(self, user_id: str, limit: int = 80) -> List[UniversalUser]:
-        """Get users that a user is following."""
+    def get_following(self, user_id: str, limit: int = 80, max_pages: int = 1) -> List[UniversalUser]:
+        """Get users that a user is following.
+
+        Args:
+            user_id: The user ID to get following for
+            limit: Maximum users per page (default 80)
+            max_pages: Maximum number of API calls/pages to fetch (default 1)
+        """
         try:
-            following = self.api.account_following(id=user_id, limit=limit)
-            users = self._convert_users(following)
+            all_users = []
+            page = self.api.account_following(id=user_id, limit=limit)
+            users = self._convert_users(page)
             for user in users:
                 self.user_cache.add_user(user)
-            return users
+            all_users.extend(users)
+
+            page_count = 1
+            while page and page_count < max_pages:
+                page = self.api.fetch_next(page)
+                if page:
+                    users = self._convert_users(page)
+                    for user in users:
+                        self.user_cache.add_user(user)
+                    all_users.extend(users)
+                    page_count += 1
+
+            return all_users
         except MastodonError:
             return []
 

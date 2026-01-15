@@ -458,7 +458,7 @@ class mastodon(object):
 	def followers(self, id):
 		# Use platform backend if available
 		if hasattr(self, '_platform') and self._platform:
-			return self._platform.get_followers(id, limit=80)
+			return self._platform.get_followers(id, limit=80, max_pages=self.app.prefs.user_limit)
 
 		count = 0
 		followers = []
@@ -486,7 +486,7 @@ class mastodon(object):
 	def following(self, id):
 		# Use platform backend if available
 		if hasattr(self, '_platform') and self._platform:
-			return self._platform.get_following(id, limit=80)
+			return self._platform.get_following(id, limit=80, max_pages=self.app.prefs.user_limit)
 
 		count = 0
 		following = []

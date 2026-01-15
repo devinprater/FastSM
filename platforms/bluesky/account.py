@@ -820,28 +820,66 @@ class BlueskyAccount(PlatformAccount):
             self.app.handle_error(e, "unmute")
             return False
 
-    def get_followers(self, user_id: str, limit: int = 80, cursor: str = None) -> List[UniversalUser]:
-        """Get followers of a user."""
-        try:
-            params = {'actor': user_id, 'limit': min(limit, 100)}
-            if cursor:
-                params['cursor'] = cursor
+    def get_followers(self, user_id: str, limit: int = 80, max_pages: int = 1) -> List[UniversalUser]:
+        """Get followers of a user.
 
-            response = self.client.get_followers(**params)
-            return self._convert_profiles(response.followers)
+        Args:
+            user_id: The user ID/DID to get followers for
+            limit: Maximum users per page (default 80, max 100)
+            max_pages: Maximum number of API calls/pages to fetch (default 1)
+        """
+        try:
+            all_users = []
+            cursor = None
+            page_count = 0
+
+            while page_count < max_pages:
+                params = {'actor': user_id, 'limit': min(limit, 100)}
+                if cursor:
+                    params['cursor'] = cursor
+
+                response = self.client.get_followers(**params)
+                users = self._convert_profiles(response.followers)
+                all_users.extend(users)
+                page_count += 1
+
+                cursor = getattr(response, 'cursor', None)
+                if not cursor:
+                    break
+
+            return all_users
         except (AtProtocolError, InvokeTimeoutError) as e:
             self.app.handle_error(e, "followers")
             return []
 
-    def get_following(self, user_id: str, limit: int = 80, cursor: str = None) -> List[UniversalUser]:
-        """Get users that a user is following."""
-        try:
-            params = {'actor': user_id, 'limit': min(limit, 100)}
-            if cursor:
-                params['cursor'] = cursor
+    def get_following(self, user_id: str, limit: int = 80, max_pages: int = 1) -> List[UniversalUser]:
+        """Get users that a user is following.
 
-            response = self.client.get_follows(**params)
-            return self._convert_profiles(response.follows)
+        Args:
+            user_id: The user ID/DID to get following for
+            limit: Maximum users per page (default 80, max 100)
+            max_pages: Maximum number of API calls/pages to fetch (default 1)
+        """
+        try:
+            all_users = []
+            cursor = None
+            page_count = 0
+
+            while page_count < max_pages:
+                params = {'actor': user_id, 'limit': min(limit, 100)}
+                if cursor:
+                    params['cursor'] = cursor
+
+                response = self.client.get_follows(**params)
+                users = self._convert_profiles(response.follows)
+                all_users.extend(users)
+                page_count += 1
+
+                cursor = getattr(response, 'cursor', None)
+                if not cursor:
+                    break
+
+            return all_users
         except (AtProtocolError, InvokeTimeoutError) as e:
             self.app.handle_error(e, "following")
             return []
