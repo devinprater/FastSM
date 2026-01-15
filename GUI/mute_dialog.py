@@ -89,11 +89,14 @@ class MuteDialog(wx.Dialog):
         except Exception as e:
             self.account.app.handle_error(e, "Mute")
 
-        self.Destroy()
+        self.EndModal(wx.ID_OK)
 
 
 def show_mute_dialog(account, user):
     """Show the mute dialog for a user."""
     from . import main as main_window
-    dlg = MuteDialog(main_window.window, account, user)
+    import platform
+    parent = None if platform.system() == "Darwin" else main_window.window
+    dlg = MuteDialog(parent, account, user)
     dlg.ShowModal()
+    dlg.Destroy()

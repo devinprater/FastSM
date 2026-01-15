@@ -747,7 +747,9 @@ class MainGui(wx.Frame):
 			return
 
 		# Show dialog to get search text
-		dlg = wx.TextEntryDialog(self, "Enter text to find:", "Find in Timeline", self._find_text)
+		# On Mac, use None as parent to avoid menu state issues
+		parent = None if platform.system() == "Darwin" else self
+		dlg = wx.TextEntryDialog(parent, "Enter text to find:", "Find in Timeline", self._find_text)
 		if dlg.ShowModal() != wx.ID_OK:
 			dlg.Destroy()
 			return

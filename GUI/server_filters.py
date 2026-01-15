@@ -331,6 +331,8 @@ class EditFilterDialog(wx.Dialog):
 def show_server_filters_dialog(account):
     """Show the server filters dialog."""
     from . import main as main_window
-    dlg = ServerFiltersDialog(main_window.window, account)
+    import platform
+    parent = None if platform.system() == "Darwin" else main_window.window
+    dlg = ServerFiltersDialog(parent, account)
     dlg.ShowModal()
     dlg.Destroy()

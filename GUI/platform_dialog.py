@@ -116,12 +116,16 @@ def select_platform(parent=None) -> str:
     Returns:
         'mastodon', 'bluesky', or None if cancelled
     """
+    import platform
+    # On Mac, use None as parent to avoid menu state issues
+    if platform.system() == "Darwin":
+        parent = None
     dlg = PlatformSelectDialog(parent)
     result = dlg.ShowModal()
     if result == wx.ID_OK:
-        platform = dlg.get_platform()
+        plat = dlg.get_platform()
         dlg.Destroy()
-        return platform
+        return plat
     dlg.Destroy()
     return None
 
@@ -132,6 +136,10 @@ def get_bluesky_credentials(parent=None) -> dict:
     Returns:
         dict with 'handle', 'password', 'service_url', or None if cancelled
     """
+    import platform
+    # On Mac, use None as parent to avoid menu state issues
+    if platform.system() == "Darwin":
+        parent = None
     dlg = BlueskyAuthDialog(parent)
     result = dlg.ShowModal()
     if result == wx.ID_OK:
