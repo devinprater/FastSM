@@ -889,7 +889,9 @@ class BlueskyAccount(PlatformAccount):
     def get_suggested_users(self, limit: int = 50) -> List[UniversalUser]:
         """Get suggested users to follow."""
         try:
-            response = self.client.get_suggestions(limit=min(limit, 100))
+            from atproto import models
+            params = models.AppBskyActorGetSuggestions.Params(limit=min(limit, 100))
+            response = self.client.app.bsky.actor.get_suggestions(params)
             actors = getattr(response, 'actors', [])
             return self._convert_profiles(actors)
         except (AtProtocolError, InvokeTimeoutError) as e:
