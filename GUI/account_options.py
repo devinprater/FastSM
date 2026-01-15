@@ -16,9 +16,11 @@ class general(wx.Panel, wx.Dialog):
 		self.soundpackslist = wx.ListBox(self, -1)
 		self.soundpack_box.Add(self.soundpackslist, 0, wx.ALL, 10)
 		self.soundpackslist.Bind(wx.EVT_LISTBOX, self.on_soundpacks_list_change)
-		dirs = os.listdir(get_app().confpath+"/sounds")
+		sounds_path = get_app().confpath+"/sounds"
+		dirs = os.listdir(sounds_path)
 		for i in range(0,len(dirs)):
-			if not dirs[i].startswith("_") and not dirs[i].startswith(".DS"):
+			# Only include directories, skip hidden files and underscore-prefixed items
+			if not dirs[i].startswith("_") and not dirs[i].startswith(".") and os.path.isdir(os.path.join(sounds_path, dirs[i])):
 				self.soundpackslist.Insert(dirs[i],self.soundpackslist.GetCount())
 				if account.prefs.soundpack==dirs[i]:
 					self.soundpackslist.SetSelection(self.soundpackslist.GetCount()-1)
@@ -26,7 +28,8 @@ class general(wx.Panel, wx.Dialog):
 		try:
 			dirs2 = os.listdir("sounds")
 			for i in range(0,len(dirs2)):
-				if not dirs2[i].startswith("_") and not dirs2[i].startswith(".DS") and dirs2[i] not in dirs:
+				# Only include directories, skip hidden files and underscore-prefixed items
+				if not dirs2[i].startswith("_") and not dirs2[i].startswith(".") and dirs2[i] not in dirs and os.path.isdir(os.path.join("sounds", dirs2[i])):
 					self.soundpackslist.Insert(dirs2[i],self.soundpackslist.GetCount())
 					if account.prefs.soundpack==dirs2[i]:
 						self.soundpackslist.SetSelection(self.soundpackslist.GetCount()-1)
