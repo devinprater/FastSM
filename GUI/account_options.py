@@ -36,7 +36,7 @@ class general(wx.Panel, wx.Dialog):
 		if not hasattr(self,"sp"):
 			self.sp="default"
 		self.text_label = wx.StaticText(self, -1, "Sound pan")
-		self.soundpan = wx.Slider(self, -1, self.account.prefs.soundpan*50,-50,50,name="Soundpack Pan")
+		self.soundpan = wx.Slider(self, -1, int(self.account.prefs.soundpan*50),-50,50,name="Soundpack Pan")
 		self.soundpan.Bind(wx.EVT_SLIDER,self.OnPan)
 		self.main_box.Add(self.soundpan, 0, wx.ALL, 10)
 		self.text_label = wx.StaticText(self, -1, "Post Footer (Optional)")
