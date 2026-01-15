@@ -210,11 +210,19 @@ class timeline(object):
 
 	def _search_statuses(self, **kwargs):
 		"""Helper to search and return only statuses"""
+		# Extract only valid search parameters (avoid passing unsupported kwargs)
+		limit = kwargs.get('limit', 40)
+		max_id = kwargs.get('max_id')
+
 		# Use platform backend if available
 		if hasattr(self.account, '_platform') and self.account._platform:
-			return self.account._platform.search_statuses(self.data, **kwargs)
-		# Fallback to Mastodon API
-		result = self.account.api.search_v2(q=self.data, result_type='statuses', **kwargs)
+			return self.account._platform.search_statuses(self.data, limit=limit, max_id=max_id)
+
+		# Fallback to Mastodon API - only pass supported params
+		search_kwargs = {'limit': limit}
+		if max_id:
+			search_kwargs['max_id'] = max_id
+		result = self.account.api.search_v2(q=self.data, result_type='statuses', **search_kwargs)
 		if hasattr(result, 'statuses'):
 			return result.statuses
 		return result.get('statuses', [])
