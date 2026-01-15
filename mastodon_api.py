@@ -173,7 +173,7 @@ class mastodon(object):
 		self.default_visibility = getattr(self.me, 'source', {}).get('privacy', 'public')
 
 		# Initialize platform backend with user cache
-		self._platform = MastodonAccount(self.app, index, self.api, self.me, self.confpath, self.max_chars)
+		self._platform = MastodonAccount(self.app, index, self.api, self.me, self.confpath, self.max_chars, self.prefs)
 
 		# Migrate global user cache to per-account if this is the first run
 		self._migrate_user_cache()

@@ -28,12 +28,13 @@ class MastodonAccount(PlatformAccount):
     supports_scheduling = True
     supports_editing = True
 
-    def __init__(self, app, index: int, api: Mastodon, me, confpath: str, max_chars: int = 500):
+    def __init__(self, app, index: int, api: Mastodon, me, confpath: str, max_chars: int = 500, prefs=None):
         super().__init__(app, index)
         self.api = api
         self._me = mastodon_user_to_universal(me)
         self.confpath = confpath
         self._max_chars = max_chars
+        self._prefs = prefs  # Store reference to account wrapper's prefs
 
         # Initialize user cache (in-memory only, no disk persistence)
         self.user_cache = UserCache(confpath, 'mastodon', str(self._me.id))
@@ -95,10 +96,9 @@ class MastodonAccount(PlatformAccount):
     def get_notifications(self, limit: int = 40, **kwargs) -> List[UniversalNotification]:
         """Get notifications (optionally excludes mentions based on account setting)."""
         # Check if mentions should be included in notifications
-        try:
-            include_mentions = self.app.accounts[self.index].prefs.mentions_in_notifications
-        except:
-            include_mentions = False
+        include_mentions = False
+        if self._prefs:
+            include_mentions = getattr(self._prefs, 'mentions_in_notifications', False)
 
         if include_mentions:
             notifications = self.api.notifications(limit=limit, **kwargs)
