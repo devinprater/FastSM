@@ -199,10 +199,11 @@ class Application:
 		import config
 		try:
 			# In portable mode, don't add FastSM prefix (userdata is already app-specific)
+			# Use save_on_exit=False to avoid overwriting real account prefs on exit
 			if config.is_portable_mode():
-				prefs = config.Config(name="account"+str(index), autosave=False)
+				prefs = config.Config(name="account"+str(index), autosave=False, save_on_exit=False)
 			else:
-				prefs = config.Config(name="FastSM/account"+str(index), autosave=False)
+				prefs = config.Config(name="FastSM/account"+str(index), autosave=False, save_on_exit=False)
 			platform_type = prefs.get("platform_type", "")
 
 			if platform_type == "bluesky":
