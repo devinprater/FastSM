@@ -1,2 +1,103 @@
+FastSM Changelog
+================
+
+0.2.0 (Current Development)
+---------------------------
+
+New Features:
+
+* Earcon sounds system improvements
+  - New image.ogg sound for posts with image attachments
+  - New poll.ogg sound for posts with polls
+  - New pinned.ogg sound for pinned posts
+  - New notification.ogg sound when notifications arrive
+  - Sounds now play concurrently (no longer cut each other off)
+  - Image attachments play image.ogg, video/audio/gifv play media.ogg
+
+* Hashtag support (Mastodon)
+  - Follow/unfollow hashtags from context menu
+  - View and manage followed hashtags from Application menu
+
+* Explore/Discover dialog (Ctrl+Shift+X)
+  - Mastodon: Discover Users, Trending Posts, Trending Tags, Trending Links
+  - Bluesky: Suggested Users, Suggested Feeds, Popular Feeds
+
+* Keymap system with inheritance
+  - Custom keymaps can be placed in user config keymaps/ folder
+  - Keys not defined in custom keymap inherit from default
+  - Keymap selection in Advanced options
+
+* User viewer improvements
+  - Mute/unmute and block/unblock buttons
+  - Show/Hide Boosts toggle (Mastodon only)
+  - List Blocked Users and List Muted Users in Application menu
+
+* Poll support
+  - View poll options and results in post text
+  - Vote on polls via context menu
+
+* Content warning support
+  - Three modes: hide (show CW only), show (CW + text), ignore (text only)
+  - Configurable in options
+
+* Server filters dialog (Mastodon)
+  - View and manage server-side content filters
+
+* Timeline filtering
+  - Filter timelines by user or text
+  - Save and restore filter settings
+  - Find in timeline (F3)
+
+* Context menu on posts (right-click or keyboard shortcut)
+  - Context-aware options based on post content and platform
+
+* Mute/unmute conversation (Mastodon)
+  - Mute notifications for a thread you're participating in
+  - Available in context menu on posts
+
+* Account switching hotkeys
+
+Bluesky Improvements:
+
+* Support for listing blocked/muted users
+* Pinning and unpinning posts
+* Custom timeline persistence
+* Suggested users and feeds in Explore dialog
+
+Mac Compatibility:
+
+* Fixed keyboard shortcuts and accelerators
+* Fixed modal dialog focus issues
+* Fixed menu dimming after dialogs close
+* Fixed OAuth URL opening
+* Fixed sounds path for running from source
+* Option+M for context menu
+
+Bug Fixes:
+
+* Fixed invisible mode not playing new earcon sounds
+* Fixed search timeline error with unexpected 'limit' keyword argument
+* Fixed error log path for compiled PyInstaller builds
+* Fixed soundpacks list showing hidden files
+* Fixed explore dialog follow button
+* Fixed mentions_in_notifications not applying on startup
+* Fixed soundpan slider float/int conversion
+* Fixed opening URLs in boosted/reblogged posts
+* Fixed copy to clipboard for boosts using wrong template
+* Fixed timeline filter using wrong attribute
+* Fixed conversation loading for mentions
+* Fixed streaming resilience to transient errors
+* Fixed slow startup caused by large user cache files
+* Removed soundpack copying to user config (redundant)
+
+Performance:
+
+* User cache now in-memory only (no disk persistence)
+* Display cache for custom timelines
+* Pre-import atproto in background thread
+* More resilient streaming with better error handling
+
+
 0.1.0
+-----
 First initial version

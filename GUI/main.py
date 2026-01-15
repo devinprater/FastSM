@@ -912,6 +912,13 @@ class MainGui(wx.Frame):
 						m_unfollow_hashtag = menu.Append(-1, "Unfollow hashtag")
 						self.Bind(wx.EVT_MENU, self.OnUnfollowHashtag, m_unfollow_hashtag)
 
+				# Mute conversation option - only for Mastodon
+				if platform_type == 'mastodon' and notif_status:
+					menu.AppendSeparator()
+					is_muted_conv = getattr(notif_status, 'muted', False)
+					m_mute_conv = menu.Append(-1, "Unmute conversation" if is_muted_conv else "Mute conversation")
+					self.Bind(wx.EVT_MENU, self.OnMuteConversationToggle, m_mute_conv)
+
 		else:
 			# Standard post menu for all other timelines
 			status_to_check = item.reblog if hasattr(item, 'reblog') and item.reblog else item
@@ -1019,6 +1026,13 @@ class MainGui(wx.Frame):
 
 					m_unfollow_hashtag = menu.Append(-1, "Unfollow hashtag")
 					self.Bind(wx.EVT_MENU, self.OnUnfollowHashtag, m_unfollow_hashtag)
+
+			# Mute conversation option - only for Mastodon
+			if platform_type == 'mastodon':
+				menu.AppendSeparator()
+				is_muted_conv = getattr(status_to_check, 'muted', False)
+				m_mute_conv = menu.Append(-1, "Unmute conversation" if is_muted_conv else "Mute conversation")
+				self.Bind(wx.EVT_MENU, self.OnMuteConversationToggle, m_mute_conv)
 
 			menu.AppendSeparator()
 
@@ -1556,6 +1570,30 @@ class MainGui(wx.Frame):
 				mute_dialog.show_mute_dialog(account, user)
 		except Exception as error:
 			account.app.handle_error(error, "toggle mute")
+
+	def OnMuteConversationToggle(self, event=None):
+		"""Toggle mute state for a conversation/thread."""
+		status = self.get_current_status()
+		if not status:
+			return
+		account = get_app().currentAccount
+		# Get the actual status (unwrap boosts)
+		status_to_check = status.reblog if hasattr(status, 'reblog') and status.reblog else status
+		status_id = status_to_check.id
+		is_muted = getattr(status_to_check, 'muted', False)
+		try:
+			if is_muted:
+				if account.unmute_conversation(status_id):
+					speak.speak("Conversation unmuted")
+				else:
+					speak.speak("Failed to unmute conversation")
+			else:
+				if account.mute_conversation(status_id):
+					speak.speak("Conversation muted")
+				else:
+					speak.speak("Failed to mute conversation")
+		except Exception as error:
+			account.app.handle_error(error, "mute conversation")
 
 	def OnVotePoll(self, event=None):
 		"""Open the poll dialog for voting or viewing results."""

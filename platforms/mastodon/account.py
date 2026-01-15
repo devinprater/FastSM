@@ -733,6 +733,22 @@ class MastodonAccount(PlatformAccount):
         except MastodonError:
             return False
 
+    def mute_conversation(self, status_id: str) -> bool:
+        """Mute notifications for a conversation/thread."""
+        try:
+            self.api.status_mute(id=status_id)
+            return True
+        except MastodonError:
+            return False
+
+    def unmute_conversation(self, status_id: str) -> bool:
+        """Unmute notifications for a conversation/thread."""
+        try:
+            self.api.status_unmute(id=status_id)
+            return True
+        except MastodonError:
+            return False
+
     def accept_follow_request(self, user_id: str) -> bool:
         """Accept an incoming follow request."""
         try:
