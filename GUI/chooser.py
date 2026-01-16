@@ -125,6 +125,15 @@ class ChooseGui(wx.Dialog):
 				user = self.user_objects[idx]
 				viewer = view.UserViewGui(self.account, [user], user.acct + "'s profile")
 				viewer.Show()
+			elif self.returnvalue:
+				# User typed a username manually - fall back to lookup
+				user = self.account.app.lookup_user_name(self.account, self.returnvalue)
+				if user and user != -1:
+					viewer = view.UserViewGui(self.account, [user], user.acct + "'s profile")
+					viewer.Show()
+				else:
+					import speak
+					speak.speak("Could not find user")
 			else:
 				import speak
 				speak.speak("Could not find user")
