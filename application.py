@@ -443,6 +443,7 @@ class Application:
 			'follow_request': 'requested to follow you',
 			'admin.sign_up': 'signed up',
 			'admin.report': 'new report',
+			'quote': 'quoted your post',
 		}
 
 		notif_type = getattr(n, 'type', 'unknown')
@@ -461,6 +462,19 @@ class Application:
 		if status:
 			# Use text field if available, otherwise strip HTML from content
 			status_text = getattr(status, 'text', '') or self.strip_html(getattr(status, 'content', ''))
+
+			# Handle quote notifications - format similar to how quotes are shown in timelines
+			if hasattr(status, 'quote') and status.quote:
+				quote = status.quote
+				quote_text = getattr(quote, 'text', '') or self.strip_html(getattr(quote, 'content', ''))
+				quote_account = getattr(quote, 'account', None)
+				if quote_account:
+					quote_name = getattr(quote_account, 'display_name', '') or getattr(quote_account, 'acct', '')
+					quote_acct = getattr(quote_account, 'acct', '')
+					status_text += f" Quoting {quote_name} (@{quote_acct}): {quote_text}"
+				else:
+					status_text += f" Quoting: {quote_text}"
+
 			# Add poll info for notifications with polls
 			if hasattr(status, 'poll') and status.poll:
 				poll = status.poll

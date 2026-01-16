@@ -597,7 +597,16 @@ class MastodonAccount(PlatformAccount):
         if visibility is None:
             visibility = self.default_visibility
 
-        status_id = str(status.id) if hasattr(status, 'id') else str(status)
+        # Get the actual status ID (handle _original_status_id for mentions)
+        status_id = getattr(status, '_original_status_id', None) or (str(status.id) if hasattr(status, 'id') else str(status))
+        status_url = getattr(status, 'url', None)
+
+        # Check if this is a remote status (acct contains @)
+        is_remote = False
+        if hasattr(status, 'account') and status.account:
+            acct = getattr(status.account, 'acct', '')
+            is_remote = '@' in acct
+
         result = None
         quote_succeeded = False
 
@@ -610,8 +619,9 @@ class MastodonAccount(PlatformAccount):
                 'quoted_status_id': status_id
             }
             result = self.api._Mastodon__api_request('POST', '/api/v1/statuses', params)
-            # Verify the quote was actually attached (check for quote field in response)
-            if result and ('quote' in result or 'quote_id' in result):
+            # Verify the quote was actually attached
+            # Check for quote, quote_id, or quoted_status_id in response
+            if result and ('quote' in result or 'quote_id' in result or 'quoted_status_id' in result):
                 quote_succeeded = True
         except Exception:
             pass
@@ -621,15 +631,33 @@ class MastodonAccount(PlatformAccount):
             result = None
             try:
                 result = self.api.status_post(status=text, quote_id=status_id, visibility=visibility)
-                # Check if quote was attached
-                if result and (hasattr(result, 'quote') and result.quote):
+                # Check if quote was attached - also check for quote_id attribute
+                if result and (
+                    (hasattr(result, 'quote') and result.quote) or
+                    (hasattr(result, 'quote_id') and result.quote_id) or
+                    (hasattr(result, 'quoted_status_id') and result.quoted_status_id)
+                ):
                     quote_succeeded = True
             except Exception:
                 pass
 
-        # Method 3: Fallback - include link to original post
+        # Method 3: For remote posts, try using the status URL instead of ID
+        if not quote_succeeded and is_remote and status_url:
+            try:
+                params = {
+                    'status': text,
+                    'visibility': visibility,
+                    'quote_url': status_url  # Some servers support URL-based quoting
+                }
+                result = self.api._Mastodon__api_request('POST', '/api/v1/statuses', params)
+                if result and ('quote' in result or 'quote_id' in result or 'quoted_status_id' in result):
+                    quote_succeeded = True
+            except Exception:
+                pass
+
+        # Method 4: Fallback - include link to original post
         if not quote_succeeded:
-            original_url = getattr(status, 'url', None)
+            original_url = status_url
             if not original_url and hasattr(status, 'account'):
                 original_url = f"{self.api.api_base_url}/@{status.account.acct}/{status_id}"
             result = self.api.status_post(status=f"{text}\n\n{original_url}", visibility=visibility)

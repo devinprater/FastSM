@@ -563,8 +563,7 @@ class MainGui(wx.Frame):
 		current_index = app.accounts.index(app.currentAccount)
 		next_index = (current_index + 1) % len(app.accounts)
 		app.currentAccount = app.accounts[next_index]
-		self.refreshTimelines()
-		self.refreshList()
+		self._switch_to_account(app.currentAccount)
 		speak.speak(self._get_account_display_name(app.currentAccount))
 
 	def OnPrevAccount(self, event=None):
@@ -576,9 +575,38 @@ class MainGui(wx.Frame):
 		current_index = app.accounts.index(app.currentAccount)
 		prev_index = (current_index - 1) % len(app.accounts)
 		app.currentAccount = app.accounts[prev_index]
-		self.refreshTimelines()
-		self.refreshList()
+		self._switch_to_account(app.currentAccount)
 		speak.speak(self._get_account_display_name(app.currentAccount))
+
+	def _switch_to_account(self, account):
+		"""Switch UI to display the given account's timelines."""
+		# Refresh the timeline list for this account
+		self.list.Clear()
+		timelines = account.list_timelines()
+		for tl in timelines:
+			self.list.Insert(tl.name, self.list.GetCount())
+
+		# Restore the account's last selected timeline, or default to first
+		if account.currentIndex is not None and account.currentIndex < len(timelines):
+			self.list.SetSelection(account.currentIndex)
+		else:
+			self.list.SetSelection(0)
+			account.currentIndex = 0
+
+		# Update currentTimeline to match selection
+		selected_idx = self.list.GetSelection()
+		if selected_idx >= 0 and selected_idx < len(timelines):
+			account.currentTimeline = timelines[selected_idx]
+			account.currentIndex = selected_idx
+
+		# Update close timeline menu state
+		if account.currentTimeline and account.currentTimeline.removable:
+			self.m_close_timeline.Enable(True)
+		else:
+			self.m_close_timeline.Enable(False)
+
+		# Refresh the posts list
+		self.refreshList()
 
 	def OnNextFromUser(self,event=None):
 		misc.next_from_user(get_app().currentAccount)
