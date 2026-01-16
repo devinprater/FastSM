@@ -728,8 +728,8 @@ class MainGui(wx.Frame):
 		if status and get_app().prefs.earcon_audio:
 			# Get the actual status (unwrap boosts)
 			status_to_check = status.reblog if hasattr(status, 'reblog') and status.reblog else status
-			# Check for pinned post
-			if getattr(status_to_check, 'pinned', False):
+			# Check for pinned post (check both pinned and _pinned attributes)
+			if getattr(status_to_check, 'pinned', False) or getattr(status_to_check, '_pinned', False):
 				sound.play(get_app().currentAccount, "pinned")
 			# Check for poll
 			if getattr(status_to_check, 'poll', None):
