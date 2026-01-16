@@ -166,6 +166,9 @@ def get_binaries():
         except ImportError:
             pass
 
+    # Note: macOS sound_lib binaries are handled by hooks/hook-sound_lib.py
+    # to exclude incompatible x86 (i386/ppc) binaries
+
     return binaries
 
 
@@ -304,6 +307,7 @@ def build_macos(script_dir: Path, output_dir: Path) -> tuple:
         f"--workpath={build_dir}",
         f"--specpath={output_dir}",
         f"--osx-bundle-identifier={bundle_id}",
+        f"--additional-hooks-dir={script_dir / 'hooks'}",  # Custom hooks (e.g., sound_lib fix)
     ]
 
     # Add hidden imports
@@ -313,6 +317,14 @@ def build_macos(script_dir: Path, output_dir: Path) -> tuple:
     # Add data files
     for src, dst in get_data_files(script_dir):
         cmd.extend(["--add-data", f"{src}{os.pathsep}{dst}"])
+
+    # Note: sound_lib binaries are handled by hooks/hook-sound_lib.py
+    # which excludes incompatible x86 (i386/ppc) binaries on macOS
+
+    # Runtime hook to fix platform_utils.paths.embedded_data_path() for PyInstaller
+    rthook = script_dir / "hooks" / "rthook-platform_utils.py"
+    if rthook.exists():
+        cmd.extend(["--runtime-hook", str(rthook)])
 
     # Collect keyboard_handler
     cmd.extend(["--collect-all", "keyboard_handler"])
