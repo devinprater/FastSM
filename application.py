@@ -152,6 +152,8 @@ class Application:
 		self.prefs.sync_timeline_position = self.prefs.get("sync_timeline_position", False)
 		# Dark mode: 'off', 'on', or 'auto' (follow system)
 		self.prefs.dark_mode = self.prefs.get("dark_mode", "off")
+		# Confirm before unfollowing via toggle
+		self.prefs.confirm_unfollow = self.prefs.get("confirm_unfollow", False)
 
 		if self.prefs.invisible:
 			main.window.register_keys()
