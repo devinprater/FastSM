@@ -551,11 +551,15 @@ class Application:
 		# to prevent $..$ patterns in post text from being interpreted as template vars
 		text_content = None
 		if "$text$" in template:
-			if hasattr(s, 'reblog') and s.reblog:
-				# For reblogs, get text from the reblogged status
-				text_content = getattr(s.reblog, 'text', '') or self.strip_html(getattr(s.reblog, 'content', ''))
-			else:
-				text_content = getattr(s, 'text', '') or self.strip_html(getattr(s, 'content', ''))
+			# First check if we have a pre-processed text attribute (from StatusWrapper)
+			# This includes media descriptions and other processed content
+			text_content = getattr(s, 'text', '')
+			if not text_content:
+				# Fall back to stripping HTML from content
+				if hasattr(s, 'reblog') and s.reblog:
+					text_content = self.strip_html(getattr(s.reblog, 'content', ''))
+				else:
+					text_content = self.strip_html(getattr(s, 'content', ''))
 			if self.prefs.demojify_post:
 				text_content = self.demojify(text_content)
 
