@@ -1,6 +1,5 @@
 import wx
-from . import misc
-from . import view
+from . import misc, theme, view
 
 class ListsGui(wx.Dialog):
 	def __init__(self, account, user=None, add=True):
@@ -56,6 +55,7 @@ class ListsGui(wx.Dialog):
 		self.close.Bind(wx.EVT_BUTTON, self.OnClose)
 		self.main_box.Add(self.close, 0, wx.ALL, 10)
 		self.panel.Layout()
+		theme.apply_theme(self)
 
 	def add_items(self):
 		for i in self.lists:

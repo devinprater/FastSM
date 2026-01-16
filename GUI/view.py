@@ -1,7 +1,7 @@
 import requests
 import platform
 from application import get_app
-from . import misc
+from . import misc, theme
 import wx
 import sound
 text_box_size=(800,600)
@@ -191,6 +191,7 @@ class ViewGui(wx.Dialog):
 		self.SetAcceleratorTable(accel_tbl)
 
 		self.panel.Layout()
+		theme.apply_theme(self)
 
 	def OnLike(self, event):
 		"""Like/favourite the post."""
@@ -405,6 +406,7 @@ class UserViewGui(wx.Dialog):
 		accel_tbl = wx.AcceleratorTable(accel)
 		self.SetAcceleratorTable(accel_tbl)
 		self.panel.Layout()
+		theme.apply_theme(self)
 
 	def OnSpeakUser(self, event):
 		self.index = self.list.GetSelection()

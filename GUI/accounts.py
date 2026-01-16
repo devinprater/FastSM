@@ -3,7 +3,7 @@ import wx
 import shutil
 import os
 from application import get_app
-from . import main, misc
+from . import main, misc, theme
 import speak
 
 class AccountsGui(wx.Dialog):
@@ -32,6 +32,7 @@ class AccountsGui(wx.Dialog):
 		self.close.Bind(wx.EVT_BUTTON, self.OnClose)
 		self.main_box.Add(self.close, 0, wx.ALL, 10)
 		self.panel.Layout()
+		theme.apply_theme(self)
 
 	def add_items(self):
 		app = get_app()

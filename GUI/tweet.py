@@ -5,7 +5,7 @@ import sound
 import platform
 import datetime
 import os
-from . import poll
+from . import poll, theme
 from application import get_app
 
 text_box_size=(800,600)
@@ -191,6 +191,7 @@ class TweetGui(wx.Dialog):
 			wx.CallAfter(self.text.SetFocus)
 		else:
 			self.text.SetFocus()
+		theme.apply_theme(self)
 
 	def _platform_supports(self, feature):
 		"""Check if the current account's platform supports a feature."""

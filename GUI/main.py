@@ -8,7 +8,7 @@ from application import get_app
 import wx
 from keyboard_handler.wx_handler import WXKeyboardHandler
 import speak
-from . import account_options, accounts, chooser, custom_timelines, explore_dialog, hashtag_dialog, invisible, lists, misc, options, profile, search, timeline_filter, timelines, tray, tweet, view
+from . import account_options, accounts, chooser, custom_timelines, explore_dialog, hashtag_dialog, invisible, lists, misc, options, profile, search, theme, timeline_filter, timelines, tray, tweet, view
 import sound
 import timeline
 import threading
@@ -218,6 +218,7 @@ class MainGui(wx.Frame):
 			self.list2.Bind(wx.EVT_CHAR_HOOK, self.OnListCharHook)
 			self.list.Bind(wx.EVT_CHAR_HOOK, self.OnListCharHook)
 		self.panel.Layout()
+		theme.apply_theme(self)
 
 	def _load_keymap_file(self, path):
 		"""Load a keymap file and return dict of key -> action mappings."""

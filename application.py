@@ -149,6 +149,8 @@ class Application:
 		self.prefs.keymap = self.prefs.get("keymap", "default")
 		# Sync home timeline position with Mastodon marker API
 		self.prefs.sync_timeline_position = self.prefs.get("sync_timeline_position", False)
+		# Dark mode: 'off', 'on', or 'auto' (follow system)
+		self.prefs.dark_mode = self.prefs.get("dark_mode", "off")
 
 		if self.prefs.invisible:
 			main.window.register_keys()

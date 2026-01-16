@@ -1,4 +1,5 @@
 from application import get_app
+from . import theme
 import wx
 
 class ProfileGui(wx.Dialog):
@@ -55,6 +56,7 @@ class ProfileGui(wx.Dialog):
 		self.close.Bind(wx.EVT_BUTTON, self.OnClose)
 		self.main_box.Add(self.close, 0, wx.ALL, 10)
 		self.panel.Layout()
+		theme.apply_theme(self)
 
 	def Update(self, event):
 		# Parse fields from text

@@ -2,7 +2,7 @@ import timeline
 import platform
 import os, sys
 import wx
-from . import main
+from . import main, theme
 from application import get_app
 
 class general(wx.Panel, wx.Dialog):
@@ -164,6 +164,18 @@ class advanced(wx.Panel, wx.Dialog):
 		self.main_box.Add(self.sync_timeline_position, 0, wx.ALL, 10)
 		self.sync_timeline_position.SetValue(get_app().prefs.sync_timeline_position)
 
+		# Dark mode setting
+		dark_mode_label = wx.StaticText(self, -1, "Dark mode:")
+		self.main_box.Add(dark_mode_label, 0, wx.LEFT | wx.TOP, 10)
+		self.dark_mode = wx.Choice(self, -1, choices=[
+			"Off",
+			"On",
+			"Auto (follow system)"
+		])
+		dark_mode_map = {'off': 0, 'on': 1, 'auto': 2}
+		self.dark_mode.SetSelection(dark_mode_map.get(get_app().prefs.dark_mode, 0))
+		self.main_box.Add(self.dark_mode, 0, wx.ALL, 10)
+
 class OptionsGui(wx.Dialog):
 	def __init__(self):
 		wx.Dialog.__init__(self, None, title="Options", size=(350,200))
@@ -186,6 +198,7 @@ class OptionsGui(wx.Dialog):
 		self.close.Bind(wx.EVT_BUTTON, self.OnClose)
 		self.main_box.Add(self.close, 0, wx.ALL, 10)
 		self.panel.Layout()
+		theme.apply_theme(self)
 		self.general.ask_dismiss.SetFocus()
 
 	def OnOK(self, event):
@@ -214,6 +227,9 @@ class OptionsGui(wx.Dialog):
 		get_app().prefs.streaming=self.advanced.streaming.GetValue()
 		get_app().prefs.load_all_previous=self.advanced.load_all_previous.GetValue()
 		get_app().prefs.sync_timeline_position=self.advanced.sync_timeline_position.GetValue()
+		# Dark mode setting
+		dark_mode_values = ['off', 'on', 'auto']
+		get_app().prefs.dark_mode = dark_mode_values[self.advanced.dark_mode.GetSelection()]
 		get_app().prefs.position=self.advanced.position.GetValue()
 		get_app().prefs.earcon_audio=self.general.earcon_audio.GetValue()
 		get_app().prefs.earcon_top=self.general.earcon_top.GetValue()

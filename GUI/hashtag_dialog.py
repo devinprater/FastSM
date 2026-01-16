@@ -4,7 +4,7 @@ import wx
 import sound
 import speak
 from application import get_app
-from . import misc
+from . import misc, theme
 
 
 class FollowedHashtagsDialog(wx.Dialog):
@@ -57,6 +57,7 @@ class FollowedHashtagsDialog(wx.Dialog):
 
         self.panel.SetSizer(self.main_box)
         self.panel.Layout()
+        theme.apply_theme(self)
 
         self.list.SetFocus()
 

@@ -5,7 +5,7 @@ import webbrowser
 import wx
 
 from application import get_app
-from . import misc, view, custom_timelines
+from . import misc, theme, view, custom_timelines
 
 
 class ExploreDialog(wx.Dialog):
@@ -100,6 +100,7 @@ class ExploreDialog(wx.Dialog):
 
         self.panel.SetSizer(self.main_box)
         self.panel.Layout()
+        theme.apply_theme(self)
 
         # Disable buttons initially
         self._update_buttons()

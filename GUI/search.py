@@ -1,5 +1,5 @@
 import wx
-from . import misc
+from . import misc, theme
 
 class SearchGui(wx.Dialog):
 	def __init__(self,account, type="search"):
@@ -22,6 +22,7 @@ class SearchGui(wx.Dialog):
 		self.close.Bind(wx.EVT_BUTTON, self.OnClose)
 		self.main_box.Add(self.close, 0, wx.ALL, 10)
 		self.panel.Layout()
+		theme.apply_theme(self)
 
 	def Search(self, event):
 		if self.type=="search":

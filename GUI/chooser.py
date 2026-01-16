@@ -6,7 +6,7 @@ import wx
 import webbrowser
 import os
 import platform
-from . import lists, main, misc, view
+from . import lists, main, misc, theme, view
 
 class ChooseGui(wx.Dialog):
 
@@ -55,6 +55,7 @@ class ChooseGui(wx.Dialog):
 		self.close.Bind(wx.EVT_BUTTON, self.OnClose)
 		self.main_box.Add(self.close, 0, wx.ALL, 10)
 		self.panel.Layout()
+		theme.apply_theme(self)
 
 	def OK(self, event):
 		self.returnvalue=self.chooser.GetValue().strip("@")

@@ -2,7 +2,7 @@ from sound_lib import stream
 import platform
 import os, sys
 import wx
-from . import main
+from . import main, theme
 from application import get_app
 
 class general(wx.Panel, wx.Dialog):
@@ -108,6 +108,7 @@ class OptionsGui(wx.Dialog):
 		self.close.Bind(wx.EVT_BUTTON, self.OnClose)
 		self.main_box.Add(self.close, 0, wx.ALL, 10)
 		self.panel.Layout()
+		theme.apply_theme(self)
 		self.general.soundpackslist.SetFocus()
 
 	def OnOK(self, event):
