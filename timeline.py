@@ -316,8 +316,8 @@ class timeline(object):
 			# Fall back to recursive method for Mastodon API
 			self.process_status(actual_status)
 
-		if self.app.prefs.reversed:
-			self.statuses.reverse()
+		# Conversation threads should always be in chronological order (oldest first)
+		# regardless of the global reversed setting, since they represent a chat-like thread
 		if self.account.currentTimeline == self:
 			wx.CallAfter(main.window.refreshList)
 		sound.play(self.account, "search")

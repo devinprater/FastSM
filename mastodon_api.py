@@ -74,6 +74,7 @@ class mastodon(object):
 		self.prefs.footer = self.prefs.get("footer", "")
 		self.prefs.soundpack = self.prefs.get("soundpack", "default")
 		self.prefs.soundpan = self.prefs.get("soundpan", 0)
+		self.prefs.soundpack_volume = self.prefs.get("soundpack_volume", 1.0)  # Per-account soundpack volume
 		self.prefs.mentions_in_notifications = self.prefs.get("mentions_in_notifications", False)
 
 		# Determine platform type if not set

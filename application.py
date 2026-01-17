@@ -120,7 +120,9 @@ class Application:
 		self.prefs.invisible = self.prefs.get("invisible", False)
 		self.prefs.invisible_sync = self.prefs.get("invisible_sync", True)
 		self.prefs.update_time = self.prefs.get("update_time", 2)
-		self.prefs.volume = self.prefs.get("volume", 1.0)
+		self.prefs.media_volume = self.prefs.get("media_volume", self.prefs.get("volume", 1.0))  # Media player volume (migrates from old volume setting)
+		self.prefs.auto_open_audio_player = self.prefs.get("auto_open_audio_player", False)  # Auto-open audio player when media starts
+		self.prefs.stop_audio_on_close = self.prefs.get("stop_audio_on_close", False)  # Stop audio when audio player closes
 		self.prefs.count = self.prefs.get("count", 40)
 		self.prefs.repeat = self.prefs.get("repeat", False)
 		self.prefs.demojify = self.prefs.get("demojify", False)

@@ -63,6 +63,13 @@ class general(wx.Panel, wx.Dialog):
 		self.soundpan = wx.Slider(self, -1, int(self.account.prefs.soundpan*50),-50,50,name="Sound pan")
 		self.soundpan.Bind(wx.EVT_SLIDER,self.OnPan)
 		self.main_box.Add(self.soundpan, 0, wx.ALL, 10)
+		self.soundvolume_label = wx.StaticText(self, -1, "Soundpack volume")
+		self.main_box.Add(self.soundvolume_label, 0, wx.LEFT | wx.TOP, 10)
+		# Get soundpack_volume with fallback for old configs
+		current_volume = getattr(self.account.prefs, 'soundpack_volume', 1.0)
+		self.soundvolume = wx.Slider(self, -1, int(current_volume*100), 0, 100, name="Soundpack volume")
+		self.soundvolume.Bind(wx.EVT_SLIDER, self.OnVolume)
+		self.main_box.Add(self.soundvolume, 0, wx.ALL, 10)
 		self.footer_label = wx.StaticText(self, -1, "Post Footer (Optional)")
 		self.main_box.Add(self.footer_label, 0, wx.LEFT | wx.TOP, 10)
 		self.footer = wx.TextCtrl(self, -1, "",style=wx.TE_MULTILINE, name="Post Footer (Optional)")
@@ -85,6 +92,12 @@ class general(wx.Panel, wx.Dialog):
 		pan=self.soundpan.GetValue()/50
 		if self.snd:
 			self.snd.pan=pan
+			self.snd.play()
+
+	def OnVolume(self, event):
+		volume = self.soundvolume.GetValue() / 100
+		if self.snd:
+			self.snd.volume = volume
 			self.snd.play()
 
 	def on_soundpacks_list_change(self, event):
@@ -117,6 +130,7 @@ class OptionsGui(wx.Dialog):
 	def OnOK(self, event):
 		self.account.prefs.soundpack=self.general.sp
 		self.account.prefs.soundpan=self.general.soundpan.GetValue()/50
+		self.account.prefs.soundpack_volume=self.general.soundvolume.GetValue()/100
 		self.account.prefs.footer=self.general.footer.GetValue()
 
 		# Handle mentions_in_notifications setting change

@@ -39,6 +39,12 @@ class general(wx.Panel, wx.Dialog):
 		self.use24HourTime=wx.CheckBox(self, -1, "Use 24-hour time for post timestamps")
 		self.main_box.Add(self.use24HourTime, 0, wx.ALL, 10)
 		self.use24HourTime.SetValue(get_app().prefs.use24HourTime)
+		self.auto_open_audio_player=wx.CheckBox(self, -1, "Automatically open audio player when media starts playing")
+		self.main_box.Add(self.auto_open_audio_player, 0, wx.ALL, 10)
+		self.auto_open_audio_player.SetValue(get_app().prefs.auto_open_audio_player)
+		self.stop_audio_on_close=wx.CheckBox(self, -1, "Stop audio playback when audio player closes")
+		self.main_box.Add(self.stop_audio_on_close, 0, wx.ALL, 10)
+		self.stop_audio_on_close.SetValue(get_app().prefs.stop_audio_on_close)
 
 		# Content warning handling - use accessible name instead of separate label
 		cw_label = wx.StaticText(self, -1, "Content warnings:")
@@ -344,6 +350,8 @@ class OptionsGui(wx.Dialog):
 		get_app().prefs.userTemplate=self.templates.userTemplate.GetValue()
 		get_app().prefs.notificationTemplate=self.templates.notificationTemplate.GetValue()
 		get_app().prefs.autoOpenSingleURL=self.general.autoOpenSingleURL.GetValue()
+		get_app().prefs.auto_open_audio_player=self.general.auto_open_audio_player.GetValue()
+		get_app().prefs.stop_audio_on_close=self.general.stop_audio_on_close.GetValue()
 		# Content warning mode
 		get_app().prefs.cw_mode = new_cw_mode
 		self.Destroy()

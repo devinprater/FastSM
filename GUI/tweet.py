@@ -288,8 +288,18 @@ class TweetGui(wx.Dialog):
 
 		# Find misspelled words
 		import re
-		# Match words, excluding @mentions, #hashtags, and URLs
-		words = re.findall(r'\b[a-zA-Z\']+\b', text)
+
+		# First, remove URLs, @mentions, and #hashtags from the text for spell checking
+		# Remove URLs (http://, https://, and www.)
+		text_cleaned = re.sub(r'https?://\S+', '', text)
+		text_cleaned = re.sub(r'www\.\S+', '', text_cleaned)
+		# Remove @mentions
+		text_cleaned = re.sub(r'@\w+', '', text_cleaned)
+		# Remove #hashtags
+		text_cleaned = re.sub(r'#\w+', '', text_cleaned)
+
+		# Match words from the cleaned text
+		words = re.findall(r'\b[a-zA-Z\']+\b', text_cleaned)
 		misspelled = []
 		checked = set()
 

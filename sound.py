@@ -126,7 +126,8 @@ def play(account, filename, pack="", wait=False):
 	try:
 		handle = stream.FileStream(file=path)
 		handle.pan = account.prefs.soundpan
-		handle.volume = app.prefs.volume
+		# Use per-account soundpack volume (with fallback for old configs)
+		handle.volume = getattr(account.prefs, 'soundpack_volume', 1.0)
 		handle.looping = False
 		if wait:
 			handle.play_blocking()
@@ -139,8 +140,18 @@ def play(account, filename, pack="", wait=False):
 def play_url(url):
 	global player
 	try:
+		from application import get_app
 		player = stream.URLStream(url=url)
+		# Apply media volume from preferences
+		player.volume = getattr(get_app().prefs, 'media_volume', 1.0)
 		player.play()
+		# Auto-open audio player if setting enabled
+		if getattr(get_app().prefs, 'auto_open_audio_player', False):
+			try:
+				from GUI import audio_player
+				audio_player.auto_show_audio_player()
+			except:
+				pass
 	except:
 		speak.speak("Could not play audio.")
 
@@ -154,6 +165,12 @@ def stop():
 		except:
 			pass
 		player = None
+		# Close audio player dialog if open
+		try:
+			from GUI import audio_player
+			audio_player.close_audio_player()
+		except:
+			pass
 
 def stop_all():
 	"""Stop all sounds including UI sounds and media player."""

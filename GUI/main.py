@@ -151,6 +151,8 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnPlayExternal, m_play_external)
 		m_stop_audio = menu4.Append(-1, "Stop audio" if platform.system() == "Darwin" else "Stop audio\tCtrl+Shift+Return", "stop_audio")
 		self.Bind(wx.EVT_MENU, self.OnStopAudio, m_stop_audio)
+		m_audio_player = menu4.Append(-1, "Audio player\tCtrl+Shift+A", "audio_player")
+		self.Bind(wx.EVT_MENU, self.OnAudioPlayer, m_audio_player)
 		# On macOS, don't use menu accelerators for arrow key combos - they fire in other windows
 		# Use accelerator table instead (only fires when main window has focus)
 		if platform.system() == "Darwin":
@@ -558,6 +560,10 @@ class MainGui(wx.Frame):
 	def OnStopAudio(self,event=None):
 		sound.stop()
 		speak.speak("Stopped")
+
+	def OnAudioPlayer(self,event=None):
+		from . import audio_player
+		audio_player.show_audio_player(self)
 
 	def OnConversation(self,event=None):
 		status = self.get_current_status()
@@ -1211,16 +1217,20 @@ class MainGui(wx.Frame):
 			threading.Thread(target=tl.load, args=(True,), daemon=True).start()
 
 	def OnVolup(self, event=None):
-		if get_app().prefs.volume<1.0:
-			get_app().prefs.volume+=0.1
-			get_app().prefs.volume=round(get_app().prefs.volume,1)
-			sound.play(get_app().currentAccount,"volume_changed")
+		# Use per-account soundpack volume
+		account = get_app().currentAccount
+		if account.prefs.soundpack_volume < 1.0:
+			account.prefs.soundpack_volume += 0.1
+			account.prefs.soundpack_volume = round(account.prefs.soundpack_volume, 1)
+			sound.play(account, "volume_changed")
 
 	def OnVoldown(self, event=None):
-		if get_app().prefs.volume>0.0:
-			get_app().prefs.volume-=0.1
-			get_app().prefs.volume=round(get_app().prefs.volume,1)
-			sound.play(get_app().currentAccount,"volume_changed")
+		# Use per-account soundpack volume
+		account = get_app().currentAccount
+		if account.prefs.soundpack_volume > 0.0:
+			account.prefs.soundpack_volume -= 0.1
+			account.prefs.soundpack_volume = round(account.prefs.soundpack_volume, 1)
+			sound.play(account, "volume_changed")
 
 	def OnOptions(self, event=None):
 		Opt=options.OptionsGui()
