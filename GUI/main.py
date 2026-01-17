@@ -31,7 +31,10 @@ class MainGui(wx.Frame):
 		self.menuBar = wx.MenuBar()
 
 		menu = wx.Menu()
-		m_accounts = menu.Append(-1, "Accounts\tCtrl+A", "accounts")
+		if platform.system() == "Darwin":
+			m_accounts = menu.Append(-1, "Accounts (Ctrl+A)", "accounts")
+		else:
+			m_accounts = menu.Append(-1, "Accounts\tCtrl+A", "accounts")
 		self.Bind(wx.EVT_MENU, self.OnAccounts, m_accounts)
 		m_update_profile = menu.Append(-1, "Update profile", "profile")
 		self.Bind(wx.EVT_MENU, self.OnUpdateProfile, m_update_profile)
@@ -209,6 +212,7 @@ class MainGui(wx.Frame):
 		self._m_prev_account = m_prev_account
 		self._m_speak_user = m_speak_user
 		self._m_speak_reply = m_speak_reply
+		self._m_accounts = m_accounts
 		self.menuBar.Append(menu5, "Navigation")
 		menu6 = wx.Menu()
 		m_readme = menu6.Append(-1, "Readme\tF1", "readme")
@@ -255,6 +259,8 @@ class MainGui(wx.Frame):
 				# Ctrl + semicolon shortcuts
 				(wx.ACCEL_CTRL, ord(';'), self._m_speak_user.GetId()),
 				(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord(';'), self._m_speak_reply.GetId()),
+				# Ctrl+A for Accounts (conflicts with Select All on Mac)
+				(wx.ACCEL_CTRL, ord('A'), self._m_accounts.GetId()),
 			])
 			self.SetAcceleratorTable(accel)
 
