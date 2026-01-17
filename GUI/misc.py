@@ -59,9 +59,8 @@ def url_chooser(account, status):
 	# For boosts, get the actual boosted post
 	if hasattr(status, 'reblog') and status.reblog:
 		status = status.reblog
-	# Get text from status content
-	text = account.app.strip_html(getattr(status, 'content', ''))
-	urlList = account.app.find_urls_in_text(text)
+	# Get all URLs from status (includes media attachments, card, and text)
+	urlList = account.app.find_urls_in_status(status)
 	if len(urlList) == 0:
 		speak.speak("No URLs in this post")
 		return
@@ -694,19 +693,18 @@ def play_external(status):
 
 	audio_url = None
 
-	# First check media attachments for audio
+	# First check media attachments for audio or video (video has audio too)
 	media_attachments = getattr(status, 'media_attachments', []) or []
 	for attachment in media_attachments:
 		media_type = getattr(attachment, 'type', '') or ''
-		if media_type.lower() == 'audio':
+		if media_type.lower() in ('audio', 'video', 'gifv'):
 			audio_url = getattr(attachment, 'url', None)
 			if audio_url:
 				break
 
-	# If no audio attachment, check URLs in text
+	# If no audio attachment, check all URLs in status (including media URLs)
 	if not audio_url:
-		text = get_app().strip_html(getattr(status, 'content', ''))
-		urls = get_app().find_urls_in_text(text)
+		urls = get_app().find_urls_in_status(status)
 		audio_urls = sound.get_audio_urls(urls)
 		if audio_urls:
 			audio_url = audio_urls[0]['url']
