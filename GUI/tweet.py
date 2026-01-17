@@ -32,16 +32,16 @@ class TweetGui(wx.Dialog):
 			mentions = getattr(status, 'mentions', [])
 			inittext = self.account.app.html_to_text_for_edit(content, mentions)
 
-		wx.Dialog.__init__(self, None, title=type, size=(350,200))
+		wx.Dialog.__init__(self, None, title=type, size=(350,200), style=wx.DEFAULT_DIALOG_STYLE | wx.TAB_TRAVERSAL)
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
-		self.panel = wx.Panel(self)
+		self.panel = wx.Panel(self, style=wx.TAB_TRAVERSAL)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 		self.text_label = wx.StaticText(self.panel, -1, "Te&xt")
 		self.main_box.Add(self.text_label, 0, wx.LEFT | wx.TOP, 10)
 		if self.account.app.prefs.wrap:
-			self.text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_MULTILINE, size=text_box_size)
+			self.text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_MULTILINE, size=text_box_size, name="Post text")
 		else:
-			self.text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size)
+			self.text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size, name="Post text")
 		if platform.system() == "Darwin":
 			self.text.MacCheckSpelling(True)
 		self.main_box.Add(self.text, 0, wx.ALL, 10)
@@ -61,9 +61,9 @@ class TweetGui(wx.Dialog):
 			self.main_box.Add(self.text2_label, 0, wx.LEFT | wx.TOP, 10)
 		if self.type == "reply" or self.type == "quote" or self.type == "message":
 			if self.type == "message":
-				self.text2 = wx.TextCtrl(self.panel, -1, "", style=wx.TE_DONTWRAP, size=text_box_size)
+				self.text2 = wx.TextCtrl(self.panel, -1, "", style=wx.TE_DONTWRAP, size=text_box_size, name="Recipient")
 			else:
-				self.text2 = wx.TextCtrl(self.panel, -1, "", style=wx.TE_MULTILINE|wx.TE_DONTWRAP|wx.TE_READONLY, size=text_box_size)
+				self.text2 = wx.TextCtrl(self.panel, -1, "", style=wx.TE_MULTILINE|wx.TE_DONTWRAP|wx.TE_READONLY, size=text_box_size, name="Original post")
 			self.main_box.Add(self.text2, 0, wx.ALL, 10)
 			if self.type == "message":
 				self.text2.AppendText(inittext)
@@ -81,7 +81,7 @@ class TweetGui(wx.Dialog):
 			if self._platform_supports('visibility'):
 				self.visibility_label = wx.StaticText(self.panel, -1, "Visibility")
 				self.main_box.Add(self.visibility_label, 0, wx.LEFT | wx.TOP, 10)
-				self.visibility = wx.Choice(self.panel, -1, size=(800,600))
+				self.visibility = wx.Choice(self.panel, -1, size=(800,600), name="Visibility")
 				self.visibility.Insert("Public", self.visibility.GetCount())
 				self.visibility.Insert("Unlisted", self.visibility.GetCount())
 				self.visibility.Insert("Followers Only", self.visibility.GetCount())
@@ -107,7 +107,7 @@ class TweetGui(wx.Dialog):
 			if self._platform_supports('content_warning'):
 				self.cw_label = wx.StaticText(self.panel, -1, "Content &Warning (optional)")
 				self.main_box.Add(self.cw_label, 0, wx.LEFT | wx.TOP, 10)
-				self.cw_text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_DONTWRAP, size=(800, 30))
+				self.cw_text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_DONTWRAP, size=(800, 30), name="Content Warning (optional)")
 				# For replies/edits, copy the original post's content warning if present
 				if (self.type == "reply" or self.type == "edit") and status is not None:
 					orig_cw = getattr(status, 'spoiler_text', None)
@@ -120,7 +120,7 @@ class TweetGui(wx.Dialog):
 			if self._platform_supports('media_attachments'):
 				self.media_label = wx.StaticText(self.panel, -1, "&Media Attachments")
 				self.main_box.Add(self.media_label, 0, wx.LEFT | wx.TOP, 10)
-				self.media_list = wx.ListBox(self.panel, -1, size=(800, 100))
+				self.media_list = wx.ListBox(self.panel, -1, size=(800, 100), name="Media Attachments")
 				self.main_box.Add(self.media_list, 0, wx.ALL, 10)
 
 				media_btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -149,17 +149,17 @@ class TweetGui(wx.Dialog):
 
 				# Date picker - label must be created before control for accessibility
 				schedule_sizer.Add(wx.StaticText(self.schedule_panel, -1, "Date:"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-				self.schedule_date = wx.adv.DatePickerCtrl(self.schedule_panel, style=wx.adv.DP_DROPDOWN)
+				self.schedule_date = wx.adv.DatePickerCtrl(self.schedule_panel, style=wx.adv.DP_DROPDOWN, name="Schedule date")
 				schedule_sizer.Add(self.schedule_date, 0, wx.ALL, 5)
 
 				# Hour spinner
 				schedule_sizer.Add(wx.StaticText(self.schedule_panel, -1, "Hour:"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-				self.schedule_hour = wx.SpinCtrl(self.schedule_panel, -1, "12", min=0, max=23, size=(60, -1))
+				self.schedule_hour = wx.SpinCtrl(self.schedule_panel, -1, "12", min=0, max=23, size=(60, -1), name="Schedule hour")
 				schedule_sizer.Add(self.schedule_hour, 0, wx.ALL, 5)
 
 				# Minute spinner
 				schedule_sizer.Add(wx.StaticText(self.schedule_panel, -1, "Minute:"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-				self.schedule_minute = wx.SpinCtrl(self.schedule_panel, -1, "0", min=0, max=59, size=(60, -1))
+				self.schedule_minute = wx.SpinCtrl(self.schedule_panel, -1, "0", min=0, max=59, size=(60, -1), name="Schedule minute")
 				schedule_sizer.Add(self.schedule_minute, 0, wx.ALL, 5)
 
 				self.schedule_panel.SetSizer(schedule_sizer)
@@ -655,34 +655,34 @@ class SpellCheckDialog(wx.Dialog):
 	"""Dialog for spell checking text."""
 
 	def __init__(self, parent, dictionary, misspelled, text):
-		wx.Dialog.__init__(self, parent, title="Spell Check", size=(400, 300))
+		wx.Dialog.__init__(self, parent, title="Spell Check", size=(400, 300), style=wx.DEFAULT_DIALOG_STYLE | wx.TAB_TRAVERSAL)
 		self.dictionary = dictionary
 		self.misspelled = misspelled
 		self.corrected_text = text
 		self.current_index = 0
 
-		self.panel = wx.Panel(self)
+		self.panel = wx.Panel(self, style=wx.TAB_TRAVERSAL)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 
 		# Current word display
 		self.word_label = wx.StaticText(self.panel, -1, "Misspelled word:")
 		self.main_box.Add(self.word_label, 0, wx.ALL, 10)
 
-		self.word_text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_READONLY)
+		self.word_text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_READONLY, name="Misspelled word")
 		self.main_box.Add(self.word_text, 0, wx.EXPAND | wx.ALL, 10)
 
 		# Replacement field
 		self.replace_label = wx.StaticText(self.panel, -1, "&Replace with:")
 		self.main_box.Add(self.replace_label, 0, wx.ALL, 10)
 
-		self.replace_text = wx.TextCtrl(self.panel, -1, "")
+		self.replace_text = wx.TextCtrl(self.panel, -1, "", name="Replace with")
 		self.main_box.Add(self.replace_text, 0, wx.EXPAND | wx.ALL, 10)
 
 		# Suggestions list
 		self.suggest_label = wx.StaticText(self.panel, -1, "&Suggestions:")
 		self.main_box.Add(self.suggest_label, 0, wx.ALL, 10)
 
-		self.suggestions = wx.ListBox(self.panel, -1, size=(350, 100))
+		self.suggestions = wx.ListBox(self.panel, -1, size=(350, 100), name="Suggestions")
 		self.suggestions.Bind(wx.EVT_LISTBOX, self.OnSuggestionSelect)
 		self.suggestions.Bind(wx.EVT_LISTBOX_DCLICK, self.OnReplace)
 		self.main_box.Add(self.suggestions, 0, wx.EXPAND | wx.ALL, 10)
