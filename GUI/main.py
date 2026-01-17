@@ -100,9 +100,13 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnView, m_view)
 		m_user_profile=menu2.Append(-1, "User Profile\tCtrl+Shift+U", "profile")
 		self.Bind(wx.EVT_MENU, self.OnUserProfile, m_user_profile)
-		m_speak_user=menu2.Append(-1, "Speak user\tCtrl+;", "speak")
+		if platform.system() == "Darwin":
+			m_speak_user=menu2.Append(-1, "Speak user (Ctrl+;)", "speak")
+			m_speak_reply=menu2.Append(-1, "Speak reference post of this reply (Ctrl+Shift+;)", "speak2")
+		else:
+			m_speak_user=menu2.Append(-1, "Speak user\tCtrl+;", "speak")
+			m_speak_reply=menu2.Append(-1, "Speak reference post of this reply\tCtrl+Shift+;", "speak2")
 		self.Bind(wx.EVT_MENU, self.OnSpeakUser, m_speak_user)
-		m_speak_reply=menu2.Append(-1, "Speak reference post of this reply\tCtrl+Shift+;", "speak2")
 		self.Bind(wx.EVT_MENU, self.OnSpeakReply, m_speak_reply)
 		m_conversation=menu2.Append(-1, "Load conversation/related posts\tCtrl+G", "conversation")
 		self.Bind(wx.EVT_MENU, self.OnConversation, m_conversation)
@@ -203,6 +207,8 @@ class MainGui(wx.Frame):
 		self._m_prev_timeline = m_prev_timeline
 		self._m_next_account = m_next_account
 		self._m_prev_account = m_prev_account
+		self._m_speak_user = m_speak_user
+		self._m_speak_reply = m_speak_reply
 		self.menuBar.Append(menu5, "Navigation")
 		menu6 = wx.Menu()
 		m_readme = menu6.Append(-1, "Readme\tF1", "readme")
@@ -246,6 +252,9 @@ class MainGui(wx.Frame):
 				# Ctrl+Shift + Arrow keys
 				(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_LEFT, self._m_prev_account.GetId()),
 				(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_RIGHT, self._m_next_account.GetId()),
+				# Ctrl + semicolon shortcuts
+				(wx.ACCEL_CTRL, ord(';'), self._m_speak_user.GetId()),
+				(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord(';'), self._m_speak_reply.GetId()),
 			])
 			self.SetAcceleratorTable(accel)
 
