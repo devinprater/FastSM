@@ -1,6 +1,18 @@
 FastSM Changelog
 ================
 
+0.3.1
+The notifications and mentions timelines now save their position on exit and restore it if the post still exists in the timeline the next time you launch the app. This unlike the home timeline sync is local only and doesn't sync with any kind of API.
+More extensive support for server filters. Show warnings for those types of posts, don't let editing filters duplicate keywords.
+View image now appears at the top of context menus.
+Image viewer now works for boosted posts.
+Profile editor with fields is fixed.
+Demojify is fixed to not remove accented characters from display names.
+Bookmarks/favorites timelines properly restore on restart.
+Improvements to audio playback and URL opening.
+Sound now works on Mac.
+A bunch of keyboard stuff is fixed on Mac.
+
 0.3.0
 
 Improved image viewer
