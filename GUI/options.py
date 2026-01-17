@@ -260,7 +260,7 @@ class ai(wx.Panel, wx.Dialog):
 		# OpenAI Model selection
 		openai_model_label = wx.StaticText(self, -1, "OpenAI Model:")
 		self.main_box.Add(openai_model_label, 0, wx.LEFT | wx.TOP, 10)
-		self.openai_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"]
+		self.openai_models = ["gpt-4o-mini", "gpt-4o", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"]
 		self.openai_model = wx.Choice(self, -1, choices=self.openai_models, name="OpenAI Model")
 		current_openai_model = get_app().prefs.openai_model
 		if current_openai_model in self.openai_models:
@@ -279,7 +279,7 @@ class ai(wx.Panel, wx.Dialog):
 		# Gemini Model selection
 		gemini_model_label = wx.StaticText(self, -1, "Gemini Model:")
 		self.main_box.Add(gemini_model_label, 0, wx.LEFT | wx.TOP, 10)
-		self.gemini_models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-flash-preview-05-20", "gemini-2.5-pro-preview-05-06"]
+		self.gemini_models = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"]
 		self.gemini_model = wx.Choice(self, -1, choices=self.gemini_models, name="Gemini Model")
 		current_gemini_model = get_app().prefs.gemini_model
 		if current_gemini_model in self.gemini_models:

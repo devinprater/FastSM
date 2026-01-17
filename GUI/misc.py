@@ -628,7 +628,11 @@ def next_from_user(account):
 
 def delete(account, status):
 	try:
-		account.api.status_delete(id=status.id)
+		# Check if this is a scheduled post
+		if account.currentTimeline.type == "scheduled":
+			account.api.scheduled_status_delete(id=status.id)
+		else:
+			account.api.status_delete(id=status.id)
 		# Remove from all timelines by ID (not object identity)
 		status_id_str = str(status.id)
 		for tl in account.timelines:

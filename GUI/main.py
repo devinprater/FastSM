@@ -1028,6 +1028,17 @@ class MainGui(wx.Frame):
 				m_post_url = menu.Append(-1, "Open post URL")
 				self.Bind(wx.EVT_MENU, self.OnTweetUrl, m_post_url)
 
+				# View Image - only show if notification post has image attachments
+				has_images = False
+				if notif_status and hasattr(notif_status, 'media_attachments') and notif_status.media_attachments:
+					for media in notif_status.media_attachments:
+						if getattr(media, 'type', '').lower() == 'image':
+							has_images = True
+							break
+				if has_images:
+					m_view_image = menu.Append(-1, "View image")
+					self.Bind(wx.EVT_MENU, self.OnViewImage, m_view_image)
+
 				menu.AppendSeparator()
 
 				m_user_tl = menu.Append(-1, "User timeline")
@@ -1142,6 +1153,17 @@ class MainGui(wx.Frame):
 
 			m_post_url = menu.Append(-1, "Open post URL")
 			self.Bind(wx.EVT_MENU, self.OnTweetUrl, m_post_url)
+
+			# View Image - only show if post has image attachments
+			has_images = False
+			if hasattr(status_to_check, 'media_attachments') and status_to_check.media_attachments:
+				for media in status_to_check.media_attachments:
+					if getattr(media, 'type', '').lower() == 'image':
+						has_images = True
+						break
+			if has_images:
+				m_view_image = menu.Append(-1, "View image")
+				self.Bind(wx.EVT_MENU, self.OnViewImage, m_view_image)
 
 			menu.AppendSeparator()
 

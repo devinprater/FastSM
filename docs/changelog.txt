@@ -1,6 +1,49 @@
 FastSM Changelog
 ================
 
+0.3.0
+
+Improved image viewer
+The app now includes a much better, and actually working, image viewer, which replaces the image viewer which would appear when you press view image in the view post dialog with an image in the post. The new image viewer provides the ability to see all images in a post, as well as get AI image descriptions (see below).
+
+AI image descriptions
+You can now get AI descriptions for images in posts. Workflow: first, set up your GPT/Gemini API key, whichever one/ones you want to use, in the AI tab of the settings dialog. Set the service and model you wish to use in the combo box, and tweak the prompt to your liking. Next, on a post with an image, you can view the image/images in the post in a few different ways. The easiest is through the context menu/view image. Other ways include the view post dialog, or the global shortcut, control win alt V by default. Next, you are put in a dialog containing all of the images in the post, which you can move between with the arrows. On each image, there is an edit field with the current description of the image, if one is provided. If you tab, you will eventually find a get AI description button, which when pressed, will kick off the process of getting the AI description. This process may take a bit, depending on your model and service combination. It will then replace the description with the provided AI description.
+
+Mac
+FastSM has been able to run on Mac from source for a bit, but this is the first version of FastSM to provide a working, runnable MacOS build.
+
+Audio Player
+FastSM now has an audio player, in addition to just playing audio in audio posts. The audio player can be called up by pressing control shift A in the main window, or control win shift A in the invisible interface. In the audio player, you can press up and down arrows to change media volume, as well as left/right to seek. The media volume persists between audio files.
+In addition to all of this, the audio player has two settings. One to have the audio player automatically come up when audio starts playing, and another to stop audio from playing when the audio player is closed.
+
+Other audio improvements
+You can now set a per account soundpack volume. You can either do this by adjusting the volume in the normal way, and it will only now adjust for the focused account, or you can use the new soundpack volume slider in the account options dialog.
+
+Dark Mode
+Add a very hacky/experimental dark mode support in the advanced tab of the app.
+
+Spell Check
+It is now possible to check spelling on a post or reply you are writing, with the new spell check button in the new post dialog.
+
+Confirmations
+It is now possible to enable confirmations for different toggle actions. For example, you may want a confirmation when you unfollow someone, so that you don't do it accidentally. In the program options dialog, there is now a new confirmations tab where you can enable individual confirmations for things such as favorite, unfavorite, boost, unboost, follow, unfollow.
+
+Other additions/bugfixes
+Add enable/disable notifications buttons in the user viewer dialog. This will make Mastodon send a notification to your notifications buffer every time a user with notifications enabled posts.
+Add a feature where you can have the app only use a single API call on initial timeline loads.
+Add a global shortcut for the update profile option, control win shift U.
+Fix quoting. Quoting now works correctly in all cases.
+Fix a bug where media descriptions did not show for boosted posts.
+Fix a bug where you couldn't unschedule a scheduled post from the scheduled posts timeline.
+Fix a bug which meant you couldn't call up the scheduled posts timeline.
+Fix the title of conversation buffers when you load a conversation from a boosted post.
+Fix deleting bookmarks.
+Fix bugs with user selection when loading timelines/profiles.
+Fix search timeline errors.
+Fix pinned sound in user timelines.
+Fix a 404 error when loading user timelines on app startup.
+Fix various visual issues with the app.
+
 0.2.2
 -----
 
