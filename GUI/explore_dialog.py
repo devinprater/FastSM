@@ -1,11 +1,16 @@
 """Explore/Discover dialog for finding users, trending content, and feeds."""
 
+import platform
 import threading
 import webbrowser
 import wx
 
 from application import get_app
 from . import misc, theme, view, custom_timelines
+
+# On macOS, skip StaticText labels in sizers - VoiceOver reads them as separate items
+# causing jumbled navigation. Controls have accessible names instead.
+_is_macos = platform.system() == "Darwin"
 
 
 class ExploreDialog(wx.Dialog):
@@ -47,19 +52,21 @@ class ExploreDialog(wx.Dialog):
 
         # Category selector
         self.category_label = wx.StaticText(self.panel, -1, "&Category")
-        self.main_box.Add(self.category_label, 0, wx.LEFT | wx.TOP, 10)
+        if not _is_macos:
+            self.main_box.Add(self.category_label, 0, wx.LEFT | wx.TOP, 10)
 
         category_names = [c[1] for c in self.categories]
-        self.category_choice = wx.Choice(self.panel, -1, choices=category_names)
+        self.category_choice = wx.Choice(self.panel, -1, choices=category_names, name="Category")
         self.category_choice.SetSelection(0)
         self.category_choice.Bind(wx.EVT_CHOICE, self.OnCategoryChange)
         self.main_box.Add(self.category_choice, 0, wx.ALL | wx.EXPAND, 10)
 
         # Results list
         self.list_label = wx.StaticText(self.panel, -1, "&Results")
-        self.main_box.Add(self.list_label, 0, wx.LEFT, 10)
+        if not _is_macos:
+            self.main_box.Add(self.list_label, 0, wx.LEFT, 10)
 
-        self.list = wx.ListBox(self.panel, -1, size=(480, 200))
+        self.list = wx.ListBox(self.panel, -1, size=(480, 200), name="Results")
         self.list.Bind(wx.EVT_LISTBOX, self.OnListChange)
         self.list.Bind(wx.EVT_LISTBOX_DCLICK, self.OnView)
         self.main_box.Add(self.list, 1, wx.ALL | wx.EXPAND, 10)

@@ -151,28 +151,55 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnPlayExternal, m_play_external)
 		m_stop_audio = menu4.Append(-1, "Stop audio" if platform.system() == "Darwin" else "Stop audio\tCtrl+Shift+Return", "stop_audio")
 		self.Bind(wx.EVT_MENU, self.OnStopAudio, m_stop_audio)
-		m_volup = menu4.Append(-1, "Volume up\tAlt+Up", "volup")
+		# On macOS, don't use menu accelerators for arrow key combos - they fire in other windows
+		# Use accelerator table instead (only fires when main window has focus)
+		if platform.system() == "Darwin":
+			m_volup = menu4.Append(-1, "Volume up (Option+Up)", "volup")
+			m_voldown = menu4.Append(-1, "Volume down (Option+Down)", "voldown")
+		else:
+			m_volup = menu4.Append(-1, "Volume up\tAlt+Up", "volup")
+			m_voldown = menu4.Append(-1, "Volume down\tAlt+Down", "voldown")
 		self.Bind(wx.EVT_MENU, self.OnVolup, m_volup)
-		m_voldown = menu4.Append(-1, "Volume down\tAlt+Down", "voldown")
 		self.Bind(wx.EVT_MENU, self.OnVoldown, m_voldown)
 		self.menuBar.Append(menu4, "A&udio")
 		menu5 = wx.Menu()
-		m_previous_in_thread = menu5.Append(-1, "Previous post in thread\tCtrl+Up", "prevpost")
+		if platform.system() == "Darwin":
+			m_previous_in_thread = menu5.Append(-1, "Previous post in thread (Ctrl+Up)", "prevpost")
+			m_next_in_thread = menu5.Append(-1, "Next post in thread (Ctrl+Down)", "nextpost")
+			m_previous_from_user = menu5.Append(-1, "Previous post from user (Ctrl+Left)", "prevuser")
+			m_next_from_user = menu5.Append(-1, "Next post from user (Ctrl+Right)", "nextuser")
+			m_next_timeline = menu5.Append(-1, "Next timeline (Option+Right)", "nexttl")
+			m_prev_timeline = menu5.Append(-1, "Previous timeline (Option+Left)", "prevtl")
+			m_next_account = menu5.Append(-1, "Next account (Ctrl+Shift+Right)", "nextacc")
+			m_prev_account = menu5.Append(-1, "Previous account (Ctrl+Shift+Left)", "prevacc")
+		else:
+			m_previous_in_thread = menu5.Append(-1, "Previous post in thread\tCtrl+Up", "prevpost")
+			m_next_in_thread = menu5.Append(-1, "Next post in thread\tCtrl+Down", "nextpost")
+			m_previous_from_user = menu5.Append(-1, "Previous post from user\tCtrl+Left", "prevuser")
+			m_next_from_user = menu5.Append(-1, "Next post from user\tCtrl+Right", "nextuser")
+			m_next_timeline = menu5.Append(-1, "Next timeline\tAlt+Right", "nexttl")
+			m_prev_timeline = menu5.Append(-1, "Previous timeline\tAlt+Left", "prevtl")
+			m_next_account = menu5.Append(-1, "Next account\tCtrl+Shift+Right", "nextacc")
+			m_prev_account = menu5.Append(-1, "Previous account\tCtrl+Shift+Left", "prevacc")
 		self.Bind(wx.EVT_MENU, self.OnPreviousInThread, m_previous_in_thread)
-		m_next_in_thread = menu5.Append(-1, "Next post in thread\tCtrl+Down", "nextpost")
 		self.Bind(wx.EVT_MENU, self.OnNextInThread, m_next_in_thread)
-		m_previous_from_user = menu5.Append(-1, "Previous post from user\tCtrl+Left", "prevuser")
 		self.Bind(wx.EVT_MENU, self.OnPreviousFromUser, m_previous_from_user)
-		m_next_from_user = menu5.Append(-1, "Next post from user\tCtrl+Right", "nextuser")
 		self.Bind(wx.EVT_MENU, self.OnNextFromUser, m_next_from_user)
-		m_next_timeline = menu5.Append(-1, "Next timeline\tAlt+Right", "nexttl")
 		self.Bind(wx.EVT_MENU, self.OnNextTimeline, m_next_timeline)
-		m_prev_timeline = menu5.Append(-1, "Previous timeline\tAlt+Left", "prevtl")
 		self.Bind(wx.EVT_MENU, self.OnPrevTimeline, m_prev_timeline)
-		m_next_account = menu5.Append(-1, "Next account\tCtrl+Shift+Right", "nextacc")
 		self.Bind(wx.EVT_MENU, self.OnNextAccount, m_next_account)
-		m_prev_account = menu5.Append(-1, "Previous account\tCtrl+Shift+Left", "prevacc")
 		self.Bind(wx.EVT_MENU, self.OnPrevAccount, m_prev_account)
+		# Store menu item references for accelerator table on macOS
+		self._m_volup = m_volup
+		self._m_voldown = m_voldown
+		self._m_previous_in_thread = m_previous_in_thread
+		self._m_next_in_thread = m_next_in_thread
+		self._m_previous_from_user = m_previous_from_user
+		self._m_next_from_user = m_next_from_user
+		self._m_next_timeline = m_next_timeline
+		self._m_prev_timeline = m_prev_timeline
+		self._m_next_account = m_next_account
+		self._m_prev_account = m_prev_account
 		self.menuBar.Append(menu5, "Navigation")
 		menu6 = wx.Menu()
 		m_readme = menu6.Append(-1, "Readme\tF1", "readme")
@@ -190,12 +217,32 @@ class MainGui(wx.Frame):
 		self.menuBar.Append(menu6, "&Help")
 		self.SetMenuBar(self.menuBar)
 
-		# Add accelerator for context menu (Alt+M) - not on Mac due to focus issues
+		# Add accelerator table for keyboard shortcuts
 		if platform.system() != "Darwin":
+			# Windows/Linux: Add Alt+M for context menu
 			self.context_menu_id = wx.NewIdRef()
 			self.Bind(wx.EVT_MENU, self.OnPostContextMenu, id=self.context_menu_id)
 			accel = wx.AcceleratorTable([
 				(wx.ACCEL_ALT, ord('M'), self.context_menu_id),
+			])
+			self.SetAcceleratorTable(accel)
+		else:
+			# macOS: Add arrow key combos to accelerator table (only fires when main window focused)
+			# This prevents these shortcuts from firing in dialogs like New Post
+			accel = wx.AcceleratorTable([
+				# Alt (Option) + Arrow keys
+				(wx.ACCEL_ALT, wx.WXK_UP, self._m_volup.GetId()),
+				(wx.ACCEL_ALT, wx.WXK_DOWN, self._m_voldown.GetId()),
+				(wx.ACCEL_ALT, wx.WXK_LEFT, self._m_prev_timeline.GetId()),
+				(wx.ACCEL_ALT, wx.WXK_RIGHT, self._m_next_timeline.GetId()),
+				# Ctrl (Control) + Arrow keys
+				(wx.ACCEL_CTRL, wx.WXK_UP, self._m_previous_in_thread.GetId()),
+				(wx.ACCEL_CTRL, wx.WXK_DOWN, self._m_next_in_thread.GetId()),
+				(wx.ACCEL_CTRL, wx.WXK_LEFT, self._m_previous_from_user.GetId()),
+				(wx.ACCEL_CTRL, wx.WXK_RIGHT, self._m_next_from_user.GetId()),
+				# Ctrl+Shift + Arrow keys
+				(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_LEFT, self._m_prev_account.GetId()),
+				(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_RIGHT, self._m_next_account.GetId()),
 			])
 			self.SetAcceleratorTable(accel)
 

@@ -6,6 +6,10 @@ import wx
 import sound
 text_box_size=(800,600)
 
+# On macOS, skip StaticText labels in sizers - VoiceOver reads them as separate items
+# causing jumbled navigation. Controls have accessible names instead.
+_is_macos = platform.system() == "Darwin"
+
 class ViewGui(wx.Dialog):
 
 	def __init__(self, account, status):
@@ -68,18 +72,20 @@ class ViewGui(wx.Dialog):
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 
 		self.text_label = wx.StaticText(self.panel, -1, "Te&xt")
-		self.main_box.Add(self.text_label, 0, wx.LEFT | wx.TOP, 10)
+		if not _is_macos:
+			self.main_box.Add(self.text_label, 0, wx.LEFT | wx.TOP, 10)
 		if self.account.app.prefs.wrap:
-			self.text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE, size=text_box_size)
+			self.text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE, size=text_box_size, name="Post text")
 		else:
-			self.text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size)
+			self.text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size, name="Post text")
 		self.main_box.Add(self.text, 0, wx.EXPAND | wx.ALL, 10)
 		self.text.SetFocus()
 		self.text.SetValue(self.post_text)
 
 		self.text2_label = wx.StaticText(self.panel, -1, "Post &Details")
-		self.main_box.Add(self.text2_label, 0, wx.LEFT | wx.TOP, 10)
-		self.text2 = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size)
+		if not _is_macos:
+			self.main_box.Add(self.text2_label, 0, wx.LEFT | wx.TOP, 10)
+		self.text2 = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size, name="Post Details")
 		self.main_box.Add(self.text2, 0, wx.EXPAND | wx.ALL, 10)
 
 		extra = ""
@@ -286,8 +292,9 @@ class UserViewGui(wx.Dialog):
 		self.panel = wx.Panel(self)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 		self.list_label = wx.StaticText(self.panel, -1, label="&Users")
-		self.main_box.Add(self.list_label, 0, wx.LEFT | wx.TOP, 10)
-		self.list = wx.ListBox(self.panel, -1)
+		if not _is_macos:
+			self.main_box.Add(self.list_label, 0, wx.LEFT | wx.TOP, 10)
+		self.list = wx.ListBox(self.panel, -1, name="Users")
 		self.main_box.Add(self.list, 0, wx.EXPAND | wx.ALL, 10)
 		self.list.Bind(wx.EVT_LISTBOX, self.on_list_change)
 
@@ -314,8 +321,9 @@ class UserViewGui(wx.Dialog):
 			self.list.SetFocus()
 
 		self.text_label = wx.StaticText(self.panel, -1, "Info")
-		self.main_box.Add(self.text_label, 0, wx.LEFT | wx.TOP, 10)
-		self.text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size)
+		if not _is_macos:
+			self.main_box.Add(self.text_label, 0, wx.LEFT | wx.TOP, 10)
+		self.text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size, name="User Info")
 		self.main_box.Add(self.text, 0, wx.EXPAND | wx.ALL, 10)
 		if len(self.users) == 1:
 			self.text.SetFocus()
@@ -703,8 +711,9 @@ class ViewTextGui(wx.Dialog):
 		self.panel = wx.Panel(self)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 		self.text_label = wx.StaticText(self.panel, -1, "Te&xt")
-		self.main_box.Add(self.text_label, 0, wx.LEFT | wx.TOP, 10)
-		self.text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP)
+		if not _is_macos:
+			self.main_box.Add(self.text_label, 0, wx.LEFT | wx.TOP, 10)
+		self.text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, name="Text")
 		self.main_box.Add(self.text, 0, wx.EXPAND | wx.ALL, 10)
 		self.text.SetValue(text)
 		self.close = wx.Button(self.panel, wx.ID_CANCEL, "&Close")
@@ -765,8 +774,9 @@ class NotificationViewGui(wx.Dialog):
 
 		# Notification details text
 		self.details_label = wx.StaticText(self.panel, -1, "Notification &Details")
-		self.main_box.Add(self.details_label, 0, wx.LEFT | wx.TOP, 10)
-		self.details = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size)
+		if not _is_macos:
+			self.main_box.Add(self.details_label, 0, wx.LEFT | wx.TOP, 10)
+		self.details = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size, name="Notification Details")
 		self.main_box.Add(self.details, 0, wx.EXPAND | wx.ALL, 10)
 		self.details.SetFocus()
 
@@ -800,11 +810,12 @@ class NotificationViewGui(wx.Dialog):
 		self.status = getattr(notification, 'status', None)
 		if self.status:
 			self.post_label = wx.StaticText(self.panel, -1, "&Post Content")
-			self.main_box.Add(self.post_label, 0, wx.LEFT | wx.TOP, 10)
+			if not _is_macos:
+				self.main_box.Add(self.post_label, 0, wx.LEFT | wx.TOP, 10)
 			if self.account.app.prefs.wrap:
-				self.post_text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE, size=text_box_size)
+				self.post_text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE, size=text_box_size, name="Post Content")
 			else:
-				self.post_text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size)
+				self.post_text = wx.TextCtrl(self.panel, style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP, size=text_box_size, name="Post Content")
 			self.main_box.Add(self.post_text, 0, wx.EXPAND | wx.ALL, 10)
 
 			# Get post content
@@ -935,7 +946,8 @@ class ViewImageGui(wx.Dialog):
 		self.panel = wx.Panel(self)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 		self.text_label = wx.StaticText(self.panel, -1, "Image")
-		self.main_box.Add(self.text_label, 0, wx.LEFT | wx.TOP, 10)
+		if not _is_macos:
+			self.main_box.Add(self.text_label, 0, wx.LEFT | wx.TOP, 10)
 		self.text = wx.StaticBitmap(self.panel, -1, self.image, (10, 5), self.size)
 		self.main_box.Add(self.text, 0, wx.ALL, 10)
 		self.close = wx.Button(self.panel, wx.ID_CANCEL, "&Close")

@@ -1,10 +1,15 @@
 """Dialog for viewing and managing followed hashtags."""
 
+import platform
 import wx
 import sound
 import speak
 from application import get_app
 from . import misc, theme
+
+# On macOS, skip StaticText labels in sizers - VoiceOver reads them as separate items
+# causing jumbled navigation. Controls have accessible names instead.
+_is_macos = platform.system() == "Darwin"
 
 
 class FollowedHashtagsDialog(wx.Dialog):
@@ -22,9 +27,10 @@ class FollowedHashtagsDialog(wx.Dialog):
 
         # Hashtags list
         self.list_label = wx.StaticText(self.panel, -1, "&Hashtags")
-        self.main_box.Add(self.list_label, 0, wx.LEFT | wx.TOP, 10)
+        if not _is_macos:
+            self.main_box.Add(self.list_label, 0, wx.LEFT | wx.TOP, 10)
 
-        self.list = wx.ListBox(self.panel, -1, size=(380, 150))
+        self.list = wx.ListBox(self.panel, -1, size=(380, 150), name="Hashtags")
         self.list.Bind(wx.EVT_LISTBOX_DCLICK, self.OnOpenTimeline)
         self.main_box.Add(self.list, 1, wx.ALL | wx.EXPAND, 10)
 
