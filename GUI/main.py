@@ -85,7 +85,10 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnTweetUrl, m_tweet_url)
 		m_delete = menu2.Append(-1, "Delete Post" if platform.system() == "Darwin" else "Delete Post\tDelete", "post")
 		self.Bind(wx.EVT_MENU, self.OnDelete, m_delete)
-		m_copy = menu2.Append(-1, "Copy post to clipboard\tCtrl+C", "copy")
+		if platform.system() == "Darwin":
+			m_copy = menu2.Append(-1, "Copy post to clipboard (Ctrl+C)", "copy")
+		else:
+			m_copy = menu2.Append(-1, "Copy post to clipboard\tCtrl+C", "copy")
 		self.Bind(wx.EVT_MENU, self.onCopy, m_copy)
 		m_message=menu2.Append(-1, "Send message\tCtrl+D", "message")
 		self.Bind(wx.EVT_MENU, self.OnMessage, m_message)
@@ -213,6 +216,7 @@ class MainGui(wx.Frame):
 		self._m_speak_user = m_speak_user
 		self._m_speak_reply = m_speak_reply
 		self._m_accounts = m_accounts
+		self._m_copy = m_copy
 		self.menuBar.Append(menu5, "Navigation")
 		menu6 = wx.Menu()
 		m_readme = menu6.Append(-1, "Readme\tF1", "readme")
@@ -261,6 +265,8 @@ class MainGui(wx.Frame):
 				(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord(';'), self._m_speak_reply.GetId()),
 				# Ctrl+A for Accounts (conflicts with Select All on Mac)
 				(wx.ACCEL_CTRL, ord('A'), self._m_accounts.GetId()),
+				# Ctrl+C for Copy post (conflicts with system Copy on Mac)
+				(wx.ACCEL_CTRL, ord('C'), self._m_copy.GetId()),
 			])
 			self.SetAcceleratorTable(accel)
 
