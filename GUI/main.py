@@ -24,6 +24,7 @@ class MainGui(wx.Frame):
 		self.handler=WXKeyboardHandler(self)
 		self.handler.register_key("control+win+shift+t",self.ToggleWindow)
 		self.handler.register_key("alt+win+shift+q",self.OnClose)
+		self.handler.register_key("control+win+shift+a",self.OnAudioPlayer)
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
 		self.panel = wx.Panel(self)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
