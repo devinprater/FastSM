@@ -312,13 +312,34 @@ class EditFilterDialog(wx.Dialog):
                 )
                 speak.speak("Filter created")
             else:
+                # When updating, we need to delete old keywords and add new ones
+                # Get existing keyword IDs for deletion
+                existing_keywords = getattr(self.filter_obj, 'keywords', [])
+
+                # Build keywords_attributes: delete old keywords, add new ones
+                update_keywords = []
+
+                # Mark existing keywords for deletion
+                for kw in existing_keywords:
+                    update_keywords.append({
+                        "id": str(kw.id),
+                        "_destroy": True
+                    })
+
+                # Add new keywords
+                for k in keywords:
+                    update_keywords.append({
+                        "keyword": k,
+                        "whole_word": whole_word
+                    })
+
                 self.account.api.update_filter_v2(
                     self.filter_obj.id,
                     title=title,
                     context=contexts,
                     filter_action=action,
                     expires_in=expires_in,
-                    keywords_attributes=keywords_attributes
+                    keywords_attributes=update_keywords
                 )
                 speak.speak("Filter updated")
 
