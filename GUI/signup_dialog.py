@@ -261,14 +261,18 @@ class MastodonSignupDialog(wx.Dialog):
 		else:
 			self.reason = None
 
+		# Server rules
+		rules_label = wx.StaticText(self.panel, -1, "Server &Rules:")
+		self.main_box.Add(rules_label, 0, wx.LEFT | wx.TOP, 10)
+		self.rules_text = wx.TextCtrl(self.panel, -1, "", style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP, size=(-1, 100), name="Server Rules")
+		self.main_box.Add(self.rules_text, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+
+		# Fetch and display rules
+		self._load_rules()
+
 		# Agreement checkbox
 		self.agreement = wx.CheckBox(self.panel, -1, "I &agree to the instance rules and terms of service")
 		self.main_box.Add(self.agreement, 0, wx.ALL, 10)
-
-		# View rules button
-		self.rules_btn = wx.Button(self.panel, -1, "&View Rules")
-		self.rules_btn.Bind(wx.EVT_BUTTON, self.on_view_rules)
-		self.main_box.Add(self.rules_btn, 0, wx.LEFT | wx.RIGHT, 10)
 
 		# Buttons
 		btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -286,9 +290,40 @@ class MastodonSignupDialog(wx.Dialog):
 
 		self.created_successfully = False
 
-	def on_view_rules(self, event):
-		"""Open the instance rules in a browser."""
-		webbrowser.open(f"{self.instance_url}/about")
+	def _load_rules(self):
+		"""Fetch and display the instance rules."""
+		rules_text = "Loading rules..."
+		self.rules_text.SetValue(rules_text)
+
+		try:
+			# Try to get rules from instance info first
+			rules = []
+			if self.instance_info:
+				rules = self.instance_info.get('rules', [])
+
+			# If no rules in instance info, fetch from API
+			if not rules:
+				response = requests.get(f"{self.instance_url}/api/v1/instance/rules", timeout=10)
+				if response.status_code == 200:
+					rules = response.json()
+
+			if rules:
+				# Format rules as numbered list
+				rules_lines = []
+				for i, rule in enumerate(rules, 1):
+					if isinstance(rule, dict):
+						text = rule.get('text', str(rule))
+					else:
+						text = str(rule)
+					rules_lines.append(f"{i}. {text}")
+				rules_text = "\n".join(rules_lines)
+			else:
+				rules_text = "No specific rules found. Please visit the instance website for terms of service."
+
+		except Exception as e:
+			rules_text = f"Could not load rules: {str(e)}\n\nPlease visit {self.instance_url}/about for the full terms."
+
+		self.rules_text.SetValue(rules_text)
 
 	def on_create(self, event):
 		"""Attempt to create the account."""
@@ -354,14 +389,22 @@ class MastodonSignupDialog(wx.Dialog):
 						'client_id': client_id,
 						'client_secret': client_secret,
 						'grant_type': 'client_credentials',
-						'scope': 'write:accounts'
+						'scope': 'read write follow push'
 					},
 					timeout=30
 				)
+
 				if token_response.status_code != 200:
-					raise Exception("Could not obtain app token")
+					# Try to get error details
+					try:
+						error_detail = token_response.json().get('error_description', token_response.json().get('error', ''))
+					except:
+						error_detail = f"Status {token_response.status_code}"
+					raise Exception(f"Could not obtain app token: {error_detail}")
 
 				app_token = token_response.json().get('access_token')
+				if not app_token:
+					raise Exception("No access token in response")
 
 				# Create account with invite code
 				data = {
@@ -383,8 +426,22 @@ class MastodonSignupDialog(wx.Dialog):
 				)
 
 				if response.status_code not in (200, 201):
-					error_data = response.json()
-					raise Exception(error_data.get('error', str(response.status_code)))
+					try:
+						error_data = response.json()
+						error_msg = error_data.get('error', str(response.status_code))
+						# Check for detailed field errors
+						if 'details' in error_data:
+							details = error_data['details']
+							field_errors = []
+							for field, errors in details.items():
+								for err in errors:
+									desc = err.get('description', err.get('error', str(err)))
+									field_errors.append(f"{field}: {desc}")
+							if field_errors:
+								error_msg = "\n".join(field_errors)
+					except:
+						error_msg = f"Server returned status {response.status_code}"
+					raise Exception(error_msg)
 
 				result = response.json()
 			else:
