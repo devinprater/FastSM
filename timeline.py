@@ -233,7 +233,10 @@ class timeline(object):
 
 		# Use platform backend if available
 		if hasattr(self.account, '_platform') and self.account._platform:
-			return self.account._platform.search_statuses(self.data, limit=limit, max_id=max_id)
+			# Only pass max_id if it's actually set (not None)
+			if max_id:
+				return self.account._platform.search_statuses(self.data, limit=limit, max_id=max_id)
+			return self.account._platform.search_statuses(self.data, limit=limit)
 
 		# Fallback to Mastodon API - handle versions that don't support limit
 		search_kwargs = {'q': self.data, 'result_type': 'statuses'}

@@ -543,7 +543,7 @@ class MastodonAccount(PlatformAccount):
         """Search for statuses."""
         # Build search kwargs - some older Mastodon.py versions don't support limit
         search_kwargs = {'q': query, 'result_type': 'statuses'}
-        if 'max_id' in kwargs:
+        if kwargs.get('max_id'):
             search_kwargs['max_id'] = kwargs['max_id']
 
         try:
@@ -763,14 +763,11 @@ class MastodonAccount(PlatformAccount):
 
     def search_users(self, query: str, limit: int = 10) -> List[UniversalUser]:
         """Search for users."""
-        try:
-            results = self.api.account_search(q=query, limit=limit)
-            users = self._convert_users(results)
-            for user in users:
-                self.user_cache.add_user(user)
-            return users
-        except MastodonError:
-            return []
+        results = self.api.account_search(q=query, limit=limit)
+        users = self._convert_users(results)
+        for user in users:
+            self.user_cache.add_user(user)
+        return users
 
     def lookup_user_by_name(self, name: str) -> Optional[UniversalUser]:
         """Look up user by acct/username - for user cache callback."""
