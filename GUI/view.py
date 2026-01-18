@@ -529,6 +529,24 @@ class UserViewGui(wx.Dialog):
 		self.index = self.list.GetSelection()
 		user = self.users[self.index]
 
+		# Fetch detailed profile if this looks like a basic profile view
+		# Basic profiles lack created_at and counts (or have all zeros)
+		is_basic_profile = (
+			getattr(user, 'created_at', None) is None or
+			(getattr(user, 'followers_count', 0) == 0 and
+			 getattr(user, 'following_count', 0) == 0 and
+			 getattr(user, 'statuses_count', 0) == 0)
+		)
+		if is_basic_profile:
+			try:
+				detailed_user = self.account.get_user(user.id)
+				if detailed_user:
+					# Update the user in our list with detailed info
+					self.users[self.index] = detailed_user
+					user = detailed_user
+			except:
+				pass  # Fall back to basic profile if fetch fails
+
 		# Check relationship with this user
 		try:
 			relationships = self.account.api.account_relationships(id=user.id)

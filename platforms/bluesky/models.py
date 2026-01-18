@@ -71,6 +71,16 @@ def bluesky_profile_to_universal(profile, platform_data=None) -> Optional[Univer
     did = get_attr(profile, 'did', '')
     handle = get_attr(profile, 'handle', '')
 
+    # Parse created_at if available (ProfileViewDetailed has this)
+    created_at_str = get_attr(profile, 'created_at', None)
+    created_at = parse_bluesky_datetime(created_at_str) if created_at_str else None
+
+    # Get counts - these are only available in ProfileViewDetailed, not basic profile views
+    # Use `or 0` to handle None values explicitly
+    followers_count = get_attr(profile, 'followers_count', None)
+    follows_count = get_attr(profile, 'follows_count', None)
+    posts_count = get_attr(profile, 'posts_count', None)
+
     return UniversalUser(
         id=did,
         acct=handle,
@@ -79,10 +89,10 @@ def bluesky_profile_to_universal(profile, platform_data=None) -> Optional[Univer
         note=get_attr(profile, 'description', ''),
         avatar=get_attr(profile, 'avatar', None),
         header=get_attr(profile, 'banner', None),
-        followers_count=get_attr(profile, 'followers_count', 0),
-        following_count=get_attr(profile, 'follows_count', 0),
-        statuses_count=get_attr(profile, 'posts_count', 0),
-        created_at=None,  # Bluesky doesn't expose account creation date
+        followers_count=followers_count if followers_count is not None else 0,
+        following_count=follows_count if follows_count is not None else 0,
+        statuses_count=posts_count if posts_count is not None else 0,
+        created_at=created_at,
         url=f"https://bsky.app/profile/{handle}",
         bot=False,  # Bluesky doesn't have bot flag
         locked=False,  # Bluesky doesn't have locked accounts
