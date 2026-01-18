@@ -41,7 +41,7 @@ class AudioPlayerDialog(wx.Dialog):
 
 		# Instructions
 		instructions = wx.StaticText(self.panel, -1,
-			"Up/Down: Volume | Left/Right: Seek 5s | Space: Play/Pause | Escape: Close")
+			"Up/Down: Volume | Left/Right: Seek 5s | Space: Play/Pause | E/R/T: Elapsed/Remaining/Total | Escape: Close")
 		main_sizer.Add(instructions, 0, wx.ALL, 10)
 
 		# Close button
@@ -77,8 +77,71 @@ class AudioPlayerDialog(wx.Dialog):
 			self._toggle_pause()
 		elif keycode == wx.WXK_ESCAPE:
 			self.OnClose(None)
+		elif keycode == ord('E'):
+			self._speak_elapsed()
+		elif keycode == ord('R'):
+			self._speak_remaining()
+		elif keycode == ord('T'):
+			self._speak_total()
 		else:
 			event.Skip()
+
+	def _get_time_info(self):
+		"""Get current position and length in seconds. Returns (elapsed, total) or (None, None) on error."""
+		if sound.player is None:
+			return None, None
+		try:
+			if sound.player_type == 'vlc':
+				pos_ms = sound.player.get_time()
+				length_ms = sound.player.get_length()
+				if pos_ms < 0:
+					pos_ms = 0
+				if length_ms < 0:
+					length_ms = 0
+				return pos_ms // 1000, length_ms // 1000
+			else:
+				pos = sound.player.position
+				length = sound.player.length
+				bytes_per_second = 176400
+				return int(pos / bytes_per_second), int(length / bytes_per_second)
+		except:
+			return None, None
+
+	def _format_time(self, seconds):
+		"""Format seconds as readable string like '3:45'."""
+		if seconds is None:
+			return "unknown"
+		minutes = seconds // 60
+		secs = seconds % 60
+		return f"{minutes}:{secs:02d}"
+
+	def _speak_elapsed(self):
+		"""Speak elapsed time."""
+		import speak
+		elapsed, _ = self._get_time_info()
+		if elapsed is not None:
+			speak.speak(f"Elapsed: {self._format_time(elapsed)}")
+		else:
+			speak.speak("Unknown")
+
+	def _speak_remaining(self):
+		"""Speak remaining time."""
+		import speak
+		elapsed, total = self._get_time_info()
+		if elapsed is not None and total is not None and total > 0:
+			remaining = max(0, total - elapsed)
+			speak.speak(f"Remaining: {self._format_time(remaining)}")
+		else:
+			speak.speak("Unknown")
+
+	def _speak_total(self):
+		"""Speak total time."""
+		import speak
+		_, total = self._get_time_info()
+		if total is not None:
+			speak.speak(f"Total: {self._format_time(total)}")
+		else:
+			speak.speak("Unknown")
 
 	def _adjust_volume(self, delta):
 		"""Adjust media volume by delta amount."""

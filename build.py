@@ -106,12 +106,25 @@ def get_data_files(script_dir: Path):
     return datas
 
 
-def find_vlc_installation():
+def find_vlc_installation(script_dir: Path = None):
     """Find VLC installation directory.
+
+    Args:
+        script_dir: Project directory to check for bundled VLC first
 
     Returns:
         Path to VLC installation or None if not found
     """
+    # Check for VLC in project folder first (already bundled for dev)
+    if script_dir:
+        project_vlc = script_dir / 'vlc'
+        if sys.platform == 'win32':
+            if project_vlc.exists() and (project_vlc / 'libvlc.dll').exists():
+                return project_vlc
+        elif sys.platform == 'darwin':
+            if project_vlc.exists():
+                return project_vlc
+
     if sys.platform == 'win32':
         # Check common installation paths
         possible_paths = [
@@ -135,21 +148,28 @@ def find_vlc_installation():
     return None
 
 
-def copy_vlc_libraries(dest_dir: Path):
+def copy_vlc_libraries(dest_dir: Path, script_dir: Path = None):
     """Copy VLC libraries to destination directory.
 
     Args:
         dest_dir: Destination directory (will create 'vlc' subfolder)
+        script_dir: Project directory to check for bundled VLC first
 
     Returns:
         True if successful, False otherwise
     """
-    vlc_install = find_vlc_installation()
+    vlc_install = find_vlc_installation(script_dir)
     if not vlc_install:
         print("WARNING: VLC installation not found. Media URL playback will require VLC to be installed.")
         return False
 
     vlc_dst = dest_dir / 'vlc'
+
+    # Skip if source and destination are the same (using project VLC)
+    if vlc_install.resolve() == vlc_dst.resolve():
+        print("VLC libraries already in place (using project vlc folder)")
+        return True
+
     print(f"Copying VLC libraries from {vlc_install}...")
 
     if vlc_dst.exists():
@@ -229,7 +249,7 @@ def copy_data_files(script_dir: Path, dest_dir: Path, include_docs: bool = True)
             shutil.copytree(docs_src, docs_dst)
 
     # VLC libraries
-    copy_vlc_libraries(dest_dir)
+    copy_vlc_libraries(dest_dir, script_dir)
 
 
 def get_binaries():
