@@ -53,9 +53,20 @@ class PollDialog(wx.Dialog):
             question_label.Wrap(450)
             main_sizer.Add(question_label, 0, wx.ALL, 10)
 
+        # Poll info
+        info_parts = []
         if is_multiple:
-            multi_label = wx.StaticText(self.panel, label="Multiple choices allowed")
-            main_sizer.Add(multi_label, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+            info_parts.append("Multiple choices allowed")
+
+        # Time remaining
+        expires_at = getattr(self.poll, 'expires_at', None)
+        if expires_at:
+            time_remaining = self._format_time_remaining(expires_at)
+            info_parts.append(f"Time remaining: {time_remaining}")
+
+        if info_parts:
+            info_label = wx.StaticText(self.panel, label=" | ".join(info_parts))
+            main_sizer.Add(info_label, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
 
         # Options
         options = getattr(self.poll, 'options', [])
@@ -118,9 +129,16 @@ class PollDialog(wx.Dialog):
         info_text = f"Total votes: {votes_count}"
         if voters_count is not None:
             info_text += f" from {voters_count} voters"
-        if is_expired:
-            info_text += " (Poll ended)"
         lines.append(info_text)
+
+        # Time remaining or ended
+        if is_expired:
+            lines.append("Poll ended")
+        else:
+            expires_at = getattr(self.poll, 'expires_at', None)
+            if expires_at:
+                time_remaining = self._format_time_remaining(expires_at)
+                lines.append(f"Time remaining: {time_remaining}")
         lines.append("")
 
         # Options with results
@@ -164,6 +182,42 @@ class PollDialog(wx.Dialog):
 
         # Set focus to text field
         self.results_text.SetFocus()
+
+    def _format_time_remaining(self, expires_at):
+        """Format the time remaining until poll expires."""
+        from datetime import datetime, timezone
+
+        try:
+            now = datetime.now(timezone.utc)
+            # Handle both datetime objects and strings
+            if isinstance(expires_at, str):
+                # Parse ISO format string
+                expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+            elif expires_at.tzinfo is None:
+                # Assume UTC if no timezone
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+            remaining = expires_at - now
+            total_seconds = int(remaining.total_seconds())
+
+            if total_seconds <= 0:
+                return "Ending soon"
+
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            minutes = (total_seconds % 3600) // 60
+
+            parts = []
+            if days > 0:
+                parts.append(f"{days} day{'s' if days != 1 else ''}")
+            if hours > 0:
+                parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+            if minutes > 0 and days == 0:  # Only show minutes if less than a day
+                parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+
+            return ", ".join(parts) if parts else "Less than a minute"
+        except Exception:
+            return "Unknown"
 
     def on_vote(self, event):
         """Submit the vote."""

@@ -18,7 +18,9 @@ class TweetGui(wx.Dialog):
 		self.max_length = 0
 		self.status = status
 		self.type = type
-		self.poll_runfor = None
+		self.poll_expires_in = None
+		self.poll_multiple = False
+		self.poll_hide_totals = False
 		self.poll_opt1 = None
 		self.poll_opt2 = None
 		self.poll_opt3 = None
@@ -393,7 +395,9 @@ class TweetGui(wx.Dialog):
 		result = p.ShowModal()
 		if result == wx.ID_CANCEL:
 			return False
-		self.poll_runfor = p.runfor.GetValue() * 60 * 24
+		self.poll_expires_in = p.get_expires_in()
+		self.poll_multiple = p.get_multiple()
+		self.poll_hide_totals = p.get_hide_totals()
 		self.poll_opt1 = p.opt1.GetValue()
 		self.poll_opt2 = p.opt2.GetValue()
 		self.poll_opt3 = p.opt3.GetValue()
@@ -630,7 +634,9 @@ class TweetGui(wx.Dialog):
 						# Post with poll (Mastodon only)
 						poll_obj = self.account.api.make_poll(
 							options=opts,
-							expires_in=self.poll_runfor * 60
+							expires_in=self.poll_expires_in,
+							multiple=self.poll_multiple,
+							hide_totals=self.poll_hide_totals
 						)
 						status = self.account.api.status_post(
 							status=self.text.GetValue(),
