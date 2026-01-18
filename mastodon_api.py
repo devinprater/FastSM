@@ -794,6 +794,20 @@ class mastodon(object):
 			return self._platform.unmute(user_id)
 		self.api.account_unmute(id=user_id)
 
+	def accept_follow_request(self, user_id):
+		"""Accept a follow request from a user."""
+		# Use platform backend if available
+		if hasattr(self, '_platform') and self._platform:
+			return self._platform.accept_follow_request(user_id)
+		self.api.follow_request_authorize(id=user_id)
+
+	def reject_follow_request(self, user_id):
+		"""Reject a follow request from a user."""
+		# Use platform backend if available
+		if hasattr(self, '_platform') and self._platform:
+			return self._platform.reject_follow_request(user_id)
+		self.api.follow_request_reject(id=user_id)
+
 	def UpdateProfile(self, display_name, note, fields=None):
 		"""Update profile information"""
 		kwargs = {}
