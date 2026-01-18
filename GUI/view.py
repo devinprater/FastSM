@@ -339,13 +339,9 @@ class ViewGui(wx.Dialog):
 			if not quotes:
 				speak.speak("No quotes found")
 				return
-			# Create a temporary timeline with the quotes
+			# Create a timeline with the quotes - timeline.py handles the quotes type
 			display_name = getattr(self.status.account, 'display_name', '') or self.status.account.acct
 			tl = timeline.timeline(self.account, name=f"Quotes of {display_name}'s post", type="quotes", data=status_id)
-			tl.statuses = list(quotes)
-			tl.removable = True
-			# Set func to fetch quotes on refresh
-			tl.func = lambda **kwargs: self.account.api._Mastodon__api_request('GET', f'/api/v1/statuses/{status_id}/quotes')
 			self.account.timelines.append(tl)
 			main.window.refreshTimelines()
 			main.window.list.SetSelection(len(self.account.timelines) - 1)

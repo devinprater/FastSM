@@ -198,6 +198,11 @@ class timeline(object):
 			else:
 				self.func = lambda **kwargs: self.account.api.scheduled_statuses(**kwargs)
 			self.removable = True
+		elif self.type == "quotes":
+			# Quotes of a specific status (Mastodon 4.5+)
+			status_id = self.data
+			self.func = lambda sid=status_id, **kwargs: self.account.api._Mastodon__api_request('GET', f'/api/v1/statuses/{sid}/quotes')
+			self.removable = True
 
 		# Load saved filter settings if any
 		from GUI.timeline_filter import get_saved_filter
