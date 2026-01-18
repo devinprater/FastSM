@@ -794,6 +794,20 @@ class mastodon(object):
 			return self._platform.unmute(user_id)
 		self.api.account_unmute(id=user_id)
 
+	def get_user(self, user_id):
+		"""Get user by ID."""
+		# Use platform backend if available
+		if hasattr(self, '_platform') and self._platform:
+			return self._platform.get_user(user_id)
+		return self.api.account(id=user_id)
+
+	def search_users(self, query, limit=40):
+		"""Search for users."""
+		# Use platform backend if available
+		if hasattr(self, '_platform') and self._platform:
+			return self._platform.search_users(query, limit=limit)
+		return self.api.account_search(q=query, limit=limit)
+
 	def accept_follow_request(self, user_id):
 		"""Accept a follow request from a user."""
 		# Use platform backend if available

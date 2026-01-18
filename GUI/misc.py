@@ -535,8 +535,10 @@ def search(account, q, focus=True):
 
 def user_search(account, q):
 	try:
-		result = account.api.account_search(q=q, limit=40)
-		users = list(result)
+		users = account.search_users(q, limit=40)
+		if not users:
+			account.app.alert("No users found", "User search")
+			return
 		u = view.UserViewGui(account, users, "User search for " + q)
 		u.Show()
 	except Exception as error:
