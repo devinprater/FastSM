@@ -1,5 +1,6 @@
 Mastodon.py>=2.0.0
 atproto
+python-vlc
 pyinstaller
 pyperclip
 requests

@@ -1,13 +1,64 @@
 import os
+import sys
 import sound_lib
 from sound_lib import stream
 from sound_lib import output as o
 import speak
 import re
 
+def _setup_vlc_path():
+	"""Set up VLC library path for bundled or system VLC."""
+	# Check for bundled VLC libraries first
+	if getattr(sys, 'frozen', False):
+		# Running as frozen app (PyInstaller)
+		if sys.platform == 'darwin':
+			# macOS: check in Resources/vlc
+			base = os.path.join(os.path.dirname(sys.executable), '..', 'Resources')
+		else:
+			# Windows: check in vlc subfolder next to executable
+			base = os.path.dirname(sys.executable)
+
+		vlc_path = os.path.join(base, 'vlc')
+		if os.path.exists(vlc_path):
+			# Set environment variables for python-vlc to find bundled libraries
+			os.environ['PYTHON_VLC_MODULE_PATH'] = vlc_path
+			os.environ['PYTHON_VLC_LIB_PATH'] = os.path.join(vlc_path, 'libvlc.dll') if sys.platform == 'win32' else vlc_path
+			# Also add to PATH for DLL loading on Windows
+			if sys.platform == 'win32':
+				os.environ['PATH'] = vlc_path + os.pathsep + os.environ.get('PATH', '')
+			return vlc_path
+	else:
+		# Development mode - check for vlc folder in project
+		vlc_path = os.path.join(os.path.dirname(__file__), 'vlc')
+		if os.path.exists(vlc_path):
+			os.environ['PYTHON_VLC_MODULE_PATH'] = vlc_path
+			os.environ['PYTHON_VLC_LIB_PATH'] = os.path.join(vlc_path, 'libvlc.dll') if sys.platform == 'win32' else vlc_path
+			if sys.platform == 'win32':
+				os.environ['PATH'] = vlc_path + os.pathsep + os.environ.get('PATH', '')
+			return vlc_path
+	return None
+
+# Set up VLC path before importing
+_vlc_path = _setup_vlc_path()
+
+try:
+	import vlc
+	# Test that VLC libraries are actually available
+	_test_instance = vlc.Instance('--no-video')
+	if _test_instance:
+		_test_instance.release()
+		VLC_AVAILABLE = True
+	else:
+		VLC_AVAILABLE = False
+except (ImportError, OSError, FileNotFoundError, AttributeError):
+	VLC_AVAILABLE = False
+	vlc = None
+
 out = o.Output()
 handles = []  # List of active sound handles for concurrent playback
-player = None
+player = None  # Media player for URL streams (VLC or sound_lib)
+player_type = None  # 'vlc' or 'soundlib' to track which player is active
+vlc_instance = None  # VLC instance (reused for efficiency)
 
 def return_url(url):
 	return url
@@ -152,13 +203,46 @@ def play(account, filename, pack="", wait=False):
 		pass
 
 def play_url(url):
-	global player
+	global player, player_type, vlc_instance
+	from application import get_app
+
+	# Stop any existing playback
+	stop()
+
+	# Try VLC first if available
+	if VLC_AVAILABLE:
+		try:
+			# Create VLC instance if needed
+			if vlc_instance is None:
+				vlc_instance = vlc.Instance('--no-video')
+			# Create media player
+			player = vlc_instance.media_player_new()
+			media = vlc_instance.media_new(url)
+			player.set_media(media)
+			# Apply media volume from preferences (VLC uses 0-100)
+			volume = int(getattr(get_app().prefs, 'media_volume', 1.0) * 100)
+			player.audio_set_volume(volume)
+			player.play()
+			player_type = 'vlc'
+			# Auto-open audio player if setting enabled
+			if getattr(get_app().prefs, 'auto_open_audio_player', False):
+				try:
+					from GUI import audio_player
+					audio_player.auto_show_audio_player()
+				except:
+					pass
+			return
+		except Exception:
+			# VLC failed, fall through to sound_lib
+			pass
+
+	# Fall back to sound_lib
 	try:
-		from application import get_app
 		player = stream.URLStream(url=url)
 		# Apply media volume from preferences
 		player.volume = getattr(get_app().prefs, 'media_volume', 1.0)
 		player.play()
+		player_type = 'soundlib'
 		# Auto-open audio player if setting enabled
 		if getattr(get_app().prefs, 'auto_open_audio_player', False):
 			try:
@@ -166,19 +250,24 @@ def play_url(url):
 				audio_player.auto_show_audio_player()
 			except:
 				pass
-	except:
-		speak.speak("Could not play audio.")
+	except Exception as e:
+		speak.speak(f"Could not play audio: {e}")
 
 def stop():
 	"""Stop media player (URL streams)."""
-	global player
+	global player, player_type
 	if player is not None:
 		try:
 			player.stop()
-			player.free()
+			# VLC uses release(), sound_lib uses free()
+			if player_type == 'vlc':
+				player.release()
+			else:
+				player.free()
 		except:
 			pass
 		player = None
+		player_type = None
 		# Close audio player dialog if open
 		try:
 			from GUI import audio_player

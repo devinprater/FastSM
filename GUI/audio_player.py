@@ -92,7 +92,10 @@ class AudioPlayerDialog(wx.Dialog):
 		# Apply to current player
 		if sound.player is not None:
 			try:
-				sound.player.volume = new_volume
+				if sound.player_type == 'vlc':
+					sound.player.audio_set_volume(int(new_volume * 100))
+				else:
+					sound.player.volume = new_volume
 			except:
 				pass
 
@@ -107,25 +110,35 @@ class AudioPlayerDialog(wx.Dialog):
 			return
 
 		try:
-			# Get current position in bytes
-			current_pos = sound.player.position
-			# Calculate bytes per second (approximate)
-			# sound_lib uses bytes position, we need to estimate based on sample rate
-			# For most audio: sample_rate * channels * bytes_per_sample
-			# Typical: 44100 * 2 * 2 = 176400 bytes per second
-			bytes_per_second = 176400  # Approximate for most audio
+			if sound.player_type == 'vlc':
+				# VLC uses milliseconds for time
+				current_ms = sound.player.get_time()
+				if current_ms < 0:
+					current_ms = 0
+				new_ms = current_ms + (seconds * 1000)
+				new_ms = max(0, int(new_ms))
 
-			new_pos = current_pos + (seconds * bytes_per_second)
-			new_pos = max(0, new_pos)
+				# Get length to cap at end
+				length_ms = sound.player.get_length()
+				if length_ms > 0:
+					new_ms = min(new_ms, length_ms)
 
-			# Get length to cap at end
-			try:
-				length = sound.player.length
-				new_pos = min(new_pos, length)
-			except:
-				pass
+				sound.player.set_time(new_ms)
+			else:
+				# sound_lib uses bytes position
+				current_pos = sound.player.position
+				bytes_per_second = 176400  # Approximate for most audio
+				new_pos = current_pos + (seconds * bytes_per_second)
+				new_pos = max(0, int(new_pos))
 
-			sound.player.position = int(new_pos)
+				# Get length to cap at end
+				try:
+					length = sound.player.length
+					new_pos = min(new_pos, length)
+				except:
+					pass
+
+				sound.player.position = new_pos
 		except Exception:
 			pass
 
@@ -135,12 +148,22 @@ class AudioPlayerDialog(wx.Dialog):
 			return
 
 		try:
-			if sound.player.is_playing:
-				sound.player.pause()
-				self.status_label.SetLabel("Paused")
+			if sound.player_type == 'vlc':
+				# VLC's is_playing() returns 1 if playing, 0 otherwise
+				if sound.player.is_playing():
+					sound.player.pause()
+					self.status_label.SetLabel("Paused")
+				else:
+					sound.player.play()
+					self.status_label.SetLabel("Now Playing")
 			else:
-				sound.player.play()
-				self.status_label.SetLabel("Now Playing")
+				# sound_lib uses is_playing property
+				if sound.player.is_playing:
+					sound.player.pause()
+					self.status_label.SetLabel("Paused")
+				else:
+					sound.player.play()
+					self.status_label.SetLabel("Now Playing")
 		except:
 			pass
 
@@ -150,30 +173,51 @@ class AudioPlayerDialog(wx.Dialog):
 			self._close_dialog()
 			return
 
+		# Check if playback ended
 		try:
-			if not sound.player.is_playing and not getattr(sound.player, 'is_paused', False):
-				# Check if it's actually stopped vs paused
-				# If position is at or near the end, audio finished
-				try:
-					pos = sound.player.position
-					length = sound.player.length
-					if pos >= length - 1000 or length == 0:  # Near end or no length info
-						self._close_dialog()
-						return
-				except:
-					pass
+			if sound.player_type == 'vlc':
+				# VLC's get_state() returns the current state
+				import vlc
+				state = sound.player.get_state()
+				if state == vlc.State.Ended or state == vlc.State.Error:
+					self._close_dialog()
+					return
+			else:
+				# sound_lib - check if stopped and near end
+				if not sound.player.is_playing:
+					try:
+						pos = sound.player.position
+						length = sound.player.length
+						if pos >= length - 1000 or length == 0:
+							self._close_dialog()
+							return
+					except:
+						pass
 		except:
-			self._close_dialog()
-			return
+			pass
 
 		# Update position display
 		try:
-			pos = sound.player.position
-			length = sound.player.length
-			bytes_per_second = 176400
+			if sound.player_type == 'vlc':
+				# VLC uses milliseconds
+				pos_ms = sound.player.get_time()
+				length_ms = sound.player.get_length()
 
-			pos_seconds = int(pos / bytes_per_second)
-			length_seconds = int(length / bytes_per_second)
+				if pos_ms < 0:
+					pos_ms = 0
+				if length_ms < 0:
+					length_ms = 0
+
+				pos_seconds = pos_ms // 1000
+				length_seconds = length_ms // 1000
+			else:
+				# sound_lib uses bytes
+				pos = sound.player.position
+				length = sound.player.length
+				bytes_per_second = 176400
+
+				pos_seconds = int(pos / bytes_per_second)
+				length_seconds = int(length / bytes_per_second)
 
 			pos_str = f"{pos_seconds // 60}:{pos_seconds % 60:02d}"
 			length_str = f"{length_seconds // 60}:{length_seconds % 60:02d}"
@@ -215,7 +259,12 @@ def show_audio_player(parent=None, silent=False):
 
 	# Check if player exists - it might not be playing yet but will be shortly
 	try:
-		is_playing = sound.player.is_playing
+		if sound.player_type == 'vlc':
+			# VLC's is_playing() returns 1 if playing, 0 otherwise
+			is_playing = sound.player.is_playing()
+		else:
+			# sound_lib uses is_playing property
+			is_playing = sound.player.is_playing
 	except:
 		is_playing = False
 

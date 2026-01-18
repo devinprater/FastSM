@@ -58,3 +58,6 @@ userdata/
 # Temporary files
 *.tmp
 *.bak
+
+# Bundled VLC libraries (copied during build/dev setup)
+vlc/

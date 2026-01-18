@@ -89,6 +89,8 @@ def get_hidden_imports():
         "pyperclip",
         # Spell check
         "enchant",
+        # Media playback
+        "vlc",
     ]
 
 
@@ -102,6 +104,85 @@ def get_data_files(script_dir: Path):
     # Most data files are copied manually after build to keep them
     # at the root level, not inside _internal
     return datas
+
+
+def find_vlc_installation():
+    """Find VLC installation directory.
+
+    Returns:
+        Path to VLC installation or None if not found
+    """
+    if sys.platform == 'win32':
+        # Check common installation paths
+        possible_paths = [
+            Path(os.environ.get('PROGRAMFILES', '')) / 'VideoLAN' / 'VLC',
+            Path(os.environ.get('PROGRAMFILES(X86)', '')) / 'VideoLAN' / 'VLC',
+            Path('C:/Program Files/VideoLAN/VLC'),
+            Path('C:/Program Files (x86)/VideoLAN/VLC'),
+        ]
+        for path in possible_paths:
+            if path.exists() and (path / 'libvlc.dll').exists():
+                return path
+    elif sys.platform == 'darwin':
+        # macOS VLC paths
+        possible_paths = [
+            Path('/Applications/VLC.app/Contents/MacOS'),
+            Path.home() / 'Applications' / 'VLC.app' / 'Contents' / 'MacOS',
+        ]
+        for path in possible_paths:
+            if path.exists():
+                return path
+    return None
+
+
+def copy_vlc_libraries(dest_dir: Path):
+    """Copy VLC libraries to destination directory.
+
+    Args:
+        dest_dir: Destination directory (will create 'vlc' subfolder)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    vlc_install = find_vlc_installation()
+    if not vlc_install:
+        print("WARNING: VLC installation not found. Media URL playback will require VLC to be installed.")
+        return False
+
+    vlc_dst = dest_dir / 'vlc'
+    print(f"Copying VLC libraries from {vlc_install}...")
+
+    if vlc_dst.exists():
+        shutil.rmtree(vlc_dst)
+    vlc_dst.mkdir(parents=True)
+
+    if sys.platform == 'win32':
+        # Copy main DLLs
+        for dll in ['libvlc.dll', 'libvlccore.dll']:
+            src = vlc_install / dll
+            if src.exists():
+                shutil.copy2(src, vlc_dst / dll)
+                print(f"  Copied {dll}")
+
+        # Copy plugins folder
+        plugins_src = vlc_install / 'plugins'
+        if plugins_src.exists():
+            plugins_dst = vlc_dst / 'plugins'
+            print("  Copying plugins folder...")
+            shutil.copytree(plugins_src, plugins_dst)
+
+    elif sys.platform == 'darwin':
+        # macOS: copy lib folder
+        lib_src = vlc_install / 'lib'
+        if lib_src.exists():
+            shutil.copytree(lib_src, vlc_dst / 'lib')
+
+        plugins_src = vlc_install / 'plugins'
+        if plugins_src.exists():
+            shutil.copytree(plugins_src, vlc_dst / 'plugins')
+
+    print("VLC libraries copied successfully")
+    return True
 
 
 def copy_data_files(script_dir: Path, dest_dir: Path, include_docs: bool = True):
@@ -139,6 +220,9 @@ def copy_data_files(script_dir: Path, dest_dir: Path, include_docs: bool = True)
             if docs_dst.exists():
                 shutil.rmtree(docs_dst)
             shutil.copytree(docs_src, docs_dst)
+
+    # VLC libraries
+    copy_vlc_libraries(dest_dir)
 
 
 def get_binaries():
