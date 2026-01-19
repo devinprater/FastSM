@@ -1947,7 +1947,8 @@ class MainGui(wx.Frame):
 		account = get_app().currentAccount
 		# Get the actual status (unwrap boosts)
 		status_to_check = status.reblog if hasattr(status, 'reblog') and status.reblog else status
-		status_id = status_to_check.id
+		# Use _original_status_id if available (for mentions timeline where id is notification id)
+		status_id = getattr(status_to_check, '_original_status_id', None) or status_to_check.id
 		is_muted = getattr(status_to_check, 'muted', False)
 		try:
 			if is_muted:
