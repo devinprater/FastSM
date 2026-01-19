@@ -331,6 +331,9 @@ def build_windows(script_dir: Path, output_dir: Path) -> tuple:
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Create build_info.txt BEFORE building command so get_data_files can include it
+    create_build_info_file(script_dir)
+
     # Build PyInstaller command
     main_script = script_dir / "FastSM.pyw"
 
@@ -370,9 +373,6 @@ def build_windows(script_dir: Path, output_dir: Path) -> tuple:
     print(f"Building {APP_NAME} v{APP_VERSION} for Windows...")
     print(f"Output: {output_dir}")
     print()
-
-    # Create build_info.txt before build so PyInstaller can include it
-    create_build_info_file(script_dir)
 
     try:
         result = subprocess.run(cmd, cwd=script_dir)
@@ -442,6 +442,9 @@ def build_macos(script_dir: Path, output_dir: Path) -> tuple:
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Create build_info.txt BEFORE building command so get_data_files can include it
+    create_build_info_file(script_dir)
+
     # Bundle identifier
     bundle_id = f"me.masonasons.{APP_NAME.lower()}"
 
@@ -484,9 +487,6 @@ def build_macos(script_dir: Path, output_dir: Path) -> tuple:
     print(f"Building {APP_NAME} v{APP_VERSION} for macOS...")
     print(f"Output: {output_dir}")
     print()
-
-    # Create build_info.txt before build so PyInstaller can include it
-    create_build_info_file(script_dir)
 
     try:
         result = subprocess.run(cmd, cwd=script_dir)
