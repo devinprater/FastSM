@@ -426,11 +426,42 @@ class TweetGui(wx.Dialog):
 		if text == "":
 			speak.speak("No user to autocomplete")
 			return
+
+		# Collect matching users from cache and API
+		matches = []
+		seen_accts = set()
+
+		# First check account's user cache
+		if hasattr(self.account, '_platform') and self.account._platform:
+			cache = self.account._platform.user_cache
+			for user in cache.get_all_users():
+				acct_lower = user.acct.lower()
+				display_name = getattr(user, 'display_name', '') or ''
+				if acct_lower.startswith(text.lower()) or display_name.lower().startswith(text.lower()):
+					if acct_lower not in seen_accts:
+						matches.append(user)
+						seen_accts.add(acct_lower)
+
+		# Also search the API for more suggestions (limit to keep it fast)
+		if len(matches) < 10:
+			try:
+				api_results = self.account.search_users(text, limit=10)
+				for user in api_results:
+					acct_lower = user.acct.lower()
+					if acct_lower not in seen_accts:
+						matches.append(user)
+						seen_accts.add(acct_lower)
+			except:
+				pass  # API search failed, just use cache results
+
+		if not matches:
+			speak.speak("No matching users found")
+			return
+
 		self.menu = wx.Menu()
-		for i in get_app().users:
-			display_name = getattr(i, 'display_name', '') or i.acct
-			if i.acct.lower().startswith(text.lower()) or display_name.lower().startswith(text.lower()):
-				self.create_menu_item(self.menu, display_name + " (@" + i.acct + ")", lambda event, orig=text, text=i.acct: self.OnUser(event, orig, text))
+		for user in matches[:15]:  # Limit to 15 results
+			display_name = getattr(user, 'display_name', '') or user.acct
+			self.create_menu_item(self.menu, display_name + " (@" + user.acct + ")", lambda event, orig=text, text=user.acct: self.OnUser(event, orig, text))
 		self.PopupMenu(self.menu)
 
 	def Newline(self, event):

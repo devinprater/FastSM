@@ -126,6 +126,10 @@ class UserCache:
 
         return None
 
+    def get_all_users(self) -> List[UniversalUser]:
+        """Return all cached users."""
+        return self.users
+
     def clear(self):
         """Clear the cache."""
         self.users = []
