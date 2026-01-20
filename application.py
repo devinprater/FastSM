@@ -127,6 +127,7 @@ class Application:
 		self.prefs.repeat = self.prefs.get("repeat", False)
 		self.prefs.demojify = self.prefs.get("demojify", False)
 		self.prefs.demojify_post = self.prefs.get("demojify_post", False)
+		self.prefs.include_media_descriptions = self.prefs.get("include_media_descriptions", True)
 		self.prefs.position = self.prefs.get("position", True)
 		self.prefs.chars_sent = self.prefs.get("chars_sent", 0)
 		self.prefs.posts_sent = self.prefs.get("posts_sent", 0)
@@ -179,6 +180,14 @@ class Application:
 
 		# yt-dlp path for YouTube/etc URL extraction (empty = use bundled or system)
 		self.prefs.ytdlp_path = self.prefs.get("ytdlp_path", "")
+		# Whether we've already asked about Windows 11 keymap
+		self.prefs.win11_keymap_asked = self.prefs.get("win11_keymap_asked", False)
+		# Audio output device index (1 = default device in BASS)
+		self.prefs.audio_output_device = self.prefs.get("audio_output_device", 1)
+
+		# Initialize audio output with selected device
+		import sound
+		sound.init_audio_output(self.prefs.audio_output_device)
 
 		if self.prefs.invisible:
 			main.window.register_keys()
@@ -503,7 +512,7 @@ class Application:
 					# 'ignore' mode: just use the text as-is
 
 			# Add media descriptions to text (only for non-reblogs to avoid duplication)
-			if hasattr(s, 'media_attachments') and s.media_attachments:
+			if self.prefs.include_media_descriptions and hasattr(s, 'media_attachments') and s.media_attachments:
 				for media in s.media_attachments:
 					media_type = getattr(media, 'type', 'media') or 'media'
 					type_display = media_type.upper() if media_type == 'gifv' else media_type.capitalize()
@@ -703,36 +712,49 @@ class Application:
 		"""Find URLs in a status (Mastodon or Bluesky)"""
 		urls = []
 
+		# For reblogged/boosted posts, also check the inner post
+		post_to_check = s
+		if hasattr(s, 'reblog') and s.reblog:
+			post_to_check = s.reblog
+
 		# Get card URL (external link embed)
-		if hasattr(s, 'card') and s.card:
-			if hasattr(s.card, 'url') and s.card.url:
-				urls.append(s.card.url)
+		if hasattr(post_to_check, 'card') and post_to_check.card:
+			if hasattr(post_to_check.card, 'url') and post_to_check.card.url:
+				urls.append(post_to_check.card.url)
 
 		# Get Bluesky facet links (URLs embedded in post text)
-		if hasattr(s, '_facet_links') and s._facet_links:
-			for link in s._facet_links:
+		if hasattr(post_to_check, '_facet_links') and post_to_check._facet_links:
+			for link in post_to_check._facet_links:
 				if link not in urls:
 					urls.append(link)
 
 		# Get media attachment URLs
-		if hasattr(s, 'media_attachments'):
-			for media in s.media_attachments:
+		if hasattr(post_to_check, 'media_attachments'):
+			for media in post_to_check.media_attachments:
 				if hasattr(media, 'url') and media.url:
 					urls.append(media.url)
 
 		# Get URLs from HTML content (Mastodon)
-		if hasattr(s, 'content') and s.content:
-			text_urls = self.find_urls_in_text(self.strip_html(s.content))
+		if hasattr(post_to_check, 'content') and post_to_check.content:
+			text_urls = self.find_urls_in_text(self.strip_html(post_to_check.content))
 			for url in text_urls:
 				if url not in urls:
 					urls.append(url)
 
 		# Get URLs from plain text (Bluesky) - only if no facet links found
-		if hasattr(s, 'text') and s.text and not hasattr(s, '_facet_links'):
-			text_urls = self.find_urls_in_text(s.text)
+		if hasattr(post_to_check, 'text') and post_to_check.text and not hasattr(post_to_check, '_facet_links'):
+			text_urls = self.find_urls_in_text(post_to_check.text)
 			for url in text_urls:
 				if url not in urls:
 					urls.append(url)
+
+		# Also check quoted posts for media
+		if hasattr(post_to_check, 'quote') and post_to_check.quote:
+			quote = post_to_check.quote
+			if hasattr(quote, 'media_attachments'):
+				for media in quote.media_attachments:
+					if hasattr(media, 'url') and media.url and media.url not in urls:
+						urls.append(media.url)
 
 		return urls
 
@@ -1292,7 +1314,14 @@ class Application:
 	def demojify(self, text):
 		"""Remove emoji from text while preserving accented characters."""
 		import re
-		# Pattern to match most emoji ranges
+		text = str(text)
+
+		# First remove Mastodon-style custom emoji shortcodes like :emoji_name:
+		# These are in format :shortcode: where shortcode is alphanumeric with underscores
+		shortcode_pattern = re.compile(r':[a-zA-Z0-9_]+:', flags=re.UNICODE)
+		text = shortcode_pattern.sub('', text)
+
+		# Pattern to match most Unicode emoji ranges
 		emoji_pattern = re.compile(
 			"["
 			"\U0001F300-\U0001F9FF"  # Miscellaneous Symbols and Pictographs, Emoticons, etc.
@@ -1309,7 +1338,7 @@ class Application:
 			"]+",
 			flags=re.UNICODE
 		)
-		return emoji_pattern.sub('', str(text))
+		return emoji_pattern.sub('', text)
 
 	def handle_error(self, error, name="Unknown"):
 		"""Handle API errors from Mastodon or Bluesky"""

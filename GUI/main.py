@@ -546,7 +546,8 @@ class MainGui(wx.Frame):
 		gui.Show()
 
 	def OnCfu(self, event=None):
-		get_app().cfu(False)
+		import threading
+		threading.Thread(target=lambda: get_app().cfu(False), daemon=True).start()
 
 	def onCopy(self,event=None):
 		tl_type = get_app().currentAccount.currentTimeline.type

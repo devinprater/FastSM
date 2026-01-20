@@ -101,6 +101,26 @@ def should_show_status(status, settings, app=None, _parent_cache=None, account=N
             return False
         return not is_reply_to_id(s)
 
+    def is_my_post(s):
+        """Check if status is posted by the current user."""
+        if not account:
+            return False
+        post = get_post_for_check(s)
+        me_id = str(getattr(account.me, 'id', '')) if hasattr(account, 'me') else ''
+        if not me_id:
+            return False
+        post_author = getattr(post, 'account', None)
+        if not post_author:
+            return False
+        post_author_id = str(getattr(post_author, 'id', ''))
+        return post_author_id == me_id
+
+    def is_my_reply(s):
+        """Check if status is a reply posted by the current user."""
+        if not is_reply_to_id(s):
+            return False
+        return is_my_post(s)
+
     # Now apply filters
     _is_boost = is_boost(status)
     _is_quote = is_quote(status)
@@ -109,6 +129,8 @@ def should_show_status(status, settings, app=None, _parent_cache=None, account=N
     _is_reply_to_me = is_reply_to_me(status)
     _is_original = is_original(status)
     _has_media = has_media(status)
+    _is_my_post = is_my_post(status)
+    _is_my_reply = is_my_reply(status)
 
     # Check boost filter
     if _is_boost and not settings.get('boosts', True):
@@ -140,6 +162,14 @@ def should_show_status(status, settings, app=None, _parent_cache=None, account=N
     if not _has_media and not settings.get('no_media', True):
         return False
 
+    # Check your posts filter
+    if _is_my_post and not settings.get('my_posts', True):
+        return False
+
+    # Check your replies filter
+    if _is_my_reply and not settings.get('my_replies', True):
+        return False
+
     # Check text filter
     filter_text = settings.get('text', '').strip().lower()
     if filter_text:
@@ -168,7 +198,7 @@ class TimelineFilterDialog(wx.Dialog):
     """Dialog for filtering the current timeline by post type."""
 
     def __init__(self, parent, timeline):
-        wx.Dialog.__init__(self, parent, title="Filter Timeline", size=(400, 380))
+        wx.Dialog.__init__(self, parent, title="Filter Timeline", size=(400, 450))
         self.timeline = timeline
         self.app = get_app()
 
@@ -216,6 +246,14 @@ class TimelineFilterDialog(wx.Dialog):
         self.show_no_media.SetValue(True)
         main_box.Add(self.show_no_media, 0, wx.ALL, 5)
 
+        self.show_my_posts = wx.CheckBox(panel, -1, "Your posts")
+        self.show_my_posts.SetValue(True)
+        main_box.Add(self.show_my_posts, 0, wx.ALL, 5)
+
+        self.show_my_replies = wx.CheckBox(panel, -1, "Your replies")
+        self.show_my_replies.SetValue(True)
+        main_box.Add(self.show_my_replies, 0, wx.ALL, 5)
+
         # Text filter
         text_box = wx.BoxSizer(wx.HORIZONTAL)
         text_label = wx.StaticText(panel, -1, "Contains &text:")
@@ -235,6 +273,8 @@ class TimelineFilterDialog(wx.Dialog):
             self.show_quotes.SetValue(settings.get('quotes', True))
             self.show_media.SetValue(settings.get('media', True))
             self.show_no_media.SetValue(settings.get('no_media', True))
+            self.show_my_posts.SetValue(settings.get('my_posts', True))
+            self.show_my_replies.SetValue(settings.get('my_replies', True))
             self.filter_text.SetValue(settings.get('text', ''))
 
         # Buttons
@@ -325,6 +365,8 @@ class TimelineFilterDialog(wx.Dialog):
                 'quotes': self.show_quotes.GetValue(),
                 'media': self.show_media.GetValue(),
                 'no_media': self.show_no_media.GetValue(),
+                'my_posts': self.show_my_posts.GetValue(),
+                'my_replies': self.show_my_replies.GetValue(),
                 'text': self.filter_text.GetValue().strip(),
             }
 

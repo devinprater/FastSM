@@ -1,6 +1,7 @@
 """Platform selection and authentication dialogs."""
 
 import wx
+import wx.adv
 import sys
 
 
@@ -58,11 +59,16 @@ class BlueskyAuthDialog(wx.Dialog):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Instructions
-        instructions = wx.StaticText(panel, label=(
-            "Enter your Bluesky handle and an App Password.\n"
-            "Create an App Password at: Settings > Privacy and Security > App Passwords"
-        ))
-        sizer.Add(instructions, 0, wx.ALL, 10)
+        instructions = wx.StaticText(panel, label="Enter your Bluesky handle and an App Password.")
+        sizer.Add(instructions, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+        # Link to create app password
+        app_password_link = wx.adv.HyperlinkCtrl(
+            panel, wx.ID_ANY,
+            "How do I create an App Password?",
+            "https://bsky.app/settings/app-passwords"
+        )
+        sizer.Add(app_password_link, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
 
         # Handle input
         handle_label = wx.StaticText(panel, label="Handle (e.g., username.bsky.social):")

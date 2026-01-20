@@ -122,9 +122,80 @@ def _find_ytdlp_executable():
 
 YTDLP_PATH = _find_ytdlp_executable()
 
-out = o.Output()
+out = None  # Will be initialized with selected device
 handles = []  # List of active sound handles for concurrent playback
 player = None  # Media player for URL streams (VLC or sound_lib)
+player_type = None  # 'vlc' or 'soundlib' to track which player is active
+vlc_instance = None  # VLC instance (reused for efficiency)
+
+def get_output_devices():
+	"""Get list of available audio output devices.
+
+	Returns:
+		List of tuples: (device_index, device_name)
+	"""
+	devices = []
+	try:
+		from sound_lib.main import bass_module
+		from ctypes import pointer, c_char_p, Structure, c_ulong
+
+		class BASS_DEVICEINFO(Structure):
+			_fields_ = [
+				('name', c_char_p),
+				('driver', c_char_p),
+				('flags', c_ulong),
+			]
+
+		# Get the BASS_GetDeviceInfo function
+		BASS_GetDeviceInfo = bass_module.BASS_GetDeviceInfo
+
+		# Enumerate devices - device 0 is "no sound", real devices start at 1
+		i = 1
+		while True:
+			info = BASS_DEVICEINFO()
+			if not BASS_GetDeviceInfo(i, pointer(info)):
+				break
+			if info.name:
+				name = info.name.decode('utf-8', errors='replace')
+				devices.append((i, name))
+			i += 1
+	except Exception as e:
+		# Log the error for debugging
+		import logging
+		logging.warning(f"Could not enumerate audio devices: {e}")
+	return devices
+
+def init_audio_output(device_index=1):
+	"""Initialize audio output with the specified device. Call from application after prefs load."""
+	global out, vlc_instance
+
+	# Free existing output first
+	if out is not None:
+		try:
+			out.free()
+		except:
+			pass
+		out = None
+
+	try:
+		out = o.Output(device=device_index)
+	except Exception as e:
+		# Fall back to device 1 (default) if device selection fails
+		try:
+			out = o.Output(device=1)
+		except:
+			pass
+
+	# Reset VLC instance so it gets recreated with new settings on next playback
+	if vlc_instance is not None:
+		try:
+			vlc_instance.release()
+		except:
+			pass
+		vlc_instance = None
+
+# Initialize with default device (1) for now - will be reinited from application.py with selected device
+init_audio_output(1)
 
 def _extract_stream_url(url):
 	"""Use yt-dlp executable to extract direct stream URL from YouTube and similar services."""
@@ -165,9 +236,6 @@ def _extract_stream_url(url):
 	except Exception as e:
 		speak.speak(f"Could not extract stream URL: {e}")
 	return url
-
-player_type = None  # 'vlc' or 'soundlib' to track which player is active
-vlc_instance = None  # VLC instance (reused for efficiency)
 
 def return_url(url):
 	return url
@@ -338,7 +406,9 @@ def play_url(url, vlc_only=False):
 			# Create VLC instance if needed
 			if vlc_instance is None:
 				# Use --quiet like TWBlue does, add network caching for streams
-				vlc_args = ['--quiet', '--network-caching=1000']
+				# --no-video disables video output (prevents DirectX window from appearing)
+				# --vout=dummy is a fallback to ensure no video window
+				vlc_args = ['--quiet', '--network-caching=1000', '--no-video', '--vout=dummy']
 				# If using bundled VLC, set paths
 				if _vlc_path:
 					vlc_args.append(f'--data-path={_vlc_path}')

@@ -50,36 +50,51 @@ class general(wx.Panel, wx.Dialog):
 
 		# Collect soundpacks from all locations
 		all_packs = set()
+		self._soundpack_paths_checked = []  # For debugging
 
 		# Check user config path
 		sounds_path = get_app().confpath+"/sounds"
+		self._soundpack_paths_checked.append(f"Config: {sounds_path} (exists={os.path.exists(sounds_path)})")
 		try:
 			if os.path.exists(sounds_path):
 				for item in os.listdir(sounds_path):
-					if not item.startswith("_") and not item.startswith(".") and os.path.isdir(os.path.join(sounds_path, item)):
+					full_path = os.path.join(sounds_path, item)
+					is_dir = os.path.isdir(full_path)
+					if not item.startswith("_") and not item.startswith(".") and is_dir:
 						all_packs.add(item)
-		except:
-			pass
+		except Exception as e:
+			self._soundpack_paths_checked.append(f"  Error: {e}")
 
 		# Check relative path (development)
+		rel_sounds = os.path.abspath("sounds")
+		self._soundpack_paths_checked.append(f"Relative: {rel_sounds} (exists={os.path.exists('sounds')})")
 		try:
 			if os.path.exists("sounds"):
 				for item in os.listdir("sounds"):
-					if not item.startswith("_") and not item.startswith(".") and os.path.isdir(os.path.join("sounds", item)):
+					full_path = os.path.join("sounds", item)
+					is_dir = os.path.isdir(full_path)
+					if not item.startswith("_") and not item.startswith(".") and is_dir:
 						all_packs.add(item)
-		except:
-			pass
+		except Exception as e:
+			self._soundpack_paths_checked.append(f"  Error: {e}")
 
 		# Check bundled path (frozen apps)
 		if bundled_path:
 			bundled_sounds = os.path.join(bundled_path, "sounds")
+			self._soundpack_paths_checked.append(f"Bundled: {bundled_sounds} (exists={os.path.exists(bundled_sounds)})")
 			try:
 				if os.path.exists(bundled_sounds):
 					for item in os.listdir(bundled_sounds):
-						if not item.startswith("_") and not item.startswith(".") and os.path.isdir(os.path.join(bundled_sounds, item)):
+						full_path = os.path.join(bundled_sounds, item)
+						is_dir = os.path.isdir(full_path)
+						if not item.startswith("_") and not item.startswith(".") and is_dir:
 							all_packs.add(item)
-			except:
-				pass
+			except Exception as e:
+				self._soundpack_paths_checked.append(f"  Error: {e}")
+		else:
+			self._soundpack_paths_checked.append("Bundled: N/A (not frozen)")
+
+		self._soundpack_paths_checked.append(f"Found packs: {sorted(all_packs)}")
 
 		# Add soundpacks to list
 		for pack in sorted(all_packs):
@@ -89,6 +104,15 @@ class general(wx.Panel, wx.Dialog):
 				self.sp = pack
 		if not hasattr(self,"sp"):
 			self.sp="default"
+
+		# If no soundpacks found, show debug info
+		if len(all_packs) == 0:
+			self.soundpackslist.Insert("(No soundpacks found - see debug info)", 0)
+			# Log debug info
+			import logging
+			logging.warning("No soundpacks found. Paths checked:")
+			for path_info in self._soundpack_paths_checked:
+				logging.warning(f"  {path_info}")
 		self.soundpan_label = wx.StaticText(self, -1, "Sound pan")
 		self.main_box.Add(self.soundpan_label, 0, wx.LEFT | wx.TOP, 10)
 		self.soundpan = wx.Slider(self, -1, int(self.account.prefs.soundpan*50),-50,50,name="Sound pan")

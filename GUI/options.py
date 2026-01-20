@@ -102,6 +102,9 @@ class templates(wx.Panel, wx.Dialog):
 		self.notificationTemplate = wx.TextCtrl(self, -1, "", name="Notification template")
 		self.main_box.Add(self.notificationTemplate, 0, wx.EXPAND | wx.ALL, 10)
 		self.notificationTemplate.AppendText(get_app().prefs.notificationTemplate)
+		self.include_media_descriptions = wx.CheckBox(self, -1, "Include image/media descriptions in post text")
+		self.main_box.Add(self.include_media_descriptions, 0, wx.ALL, 10)
+		self.include_media_descriptions.SetValue(get_app().prefs.include_media_descriptions)
 		self.SetSizer(self.main_box)
 
 class advanced(wx.Panel, wx.Dialog):
@@ -546,6 +549,40 @@ class ai(wx.Panel, wx.Dialog):
 		self.SetSizer(self.main_box)
 
 
+class audio(wx.Panel, wx.Dialog):
+	def __init__(self, parent):
+		super(audio, self).__init__(parent)
+		self.main_box = wx.BoxSizer(wx.VERTICAL)
+
+		# Audio output device selection
+		device_label = wx.StaticText(self, -1, "Audio output device:")
+		self.main_box.Add(device_label, 0, wx.LEFT | wx.TOP, 10)
+
+		# Get available audio devices from sound module
+		self.device_names = []
+		self.device_indices = []
+		try:
+			import sound
+			devices = sound.get_output_devices()
+			for device_index, device_name in devices:
+				self.device_names.append(device_name)
+				self.device_indices.append(device_index)
+		except Exception as e:
+			# If we can't enumerate devices, just show default
+			pass
+
+		self.device_choice = wx.Choice(self, -1, choices=self.device_names, name="Audio output device")
+		# Select current device
+		current_device = get_app().prefs.audio_output_device
+		if current_device in self.device_indices:
+			self.device_choice.SetSelection(self.device_indices.index(current_device))
+		else:
+			self.device_choice.SetSelection(0)  # Default
+		self.main_box.Add(self.device_choice, 0, wx.ALL, 10)
+
+		self.SetSizer(self.main_box)
+
+
 class OptionsGui(wx.Dialog):
 	def __init__(self):
 		wx.Dialog.__init__(self, None, title="Options", size=(350,200), style=wx.DEFAULT_DIALOG_STYLE | wx.TAB_TRAVERSAL)
@@ -563,6 +600,8 @@ class OptionsGui(wx.Dialog):
 		self.notebook.AddPage(self.confirmation, "Confirmation")
 		self.ai_tab=ai(self.notebook)
 		self.notebook.AddPage(self.ai_tab, "AI")
+		self.audio_tab=audio(self.notebook)
+		self.notebook.AddPage(self.audio_tab, "Audio")
 		self.main_box.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 10)
 		self.ok = wx.Button(self.panel, wx.ID_OK, "&OK")
 		self.ok.SetDefault()
@@ -594,6 +633,29 @@ class OptionsGui(wx.Dialog):
 			new_keymap = self.advanced.keymaps[self.advanced.keymap_choice.GetSelection()]
 			keymap_changed = get_app().prefs.keymap != new_keymap
 			get_app().prefs.keymap = new_keymap
+
+			# Check if enabling invisible interface on Windows 11 and not using win11 keymap
+			enabling_invisible = get_app().prefs.invisible and not main.window.invisible
+			if enabling_invisible and not get_app().prefs.win11_keymap_asked:
+				# Detect Windows 11 (build >= 22000)
+				try:
+					win_version = sys.getwindowsversion()
+					is_win11 = win_version.build >= 22000
+				except:
+					is_win11 = False
+
+				if is_win11 and new_keymap != 'win11' and 'win11' in self.advanced.keymaps:
+					get_app().prefs.win11_keymap_asked = True
+					dlg = wx.MessageDialog(self,
+						"You appear to be running Windows 11. Would you like to switch to the Windows 11 keymap for better compatibility?",
+						"Windows 11 Detected",
+						wx.YES_NO | wx.ICON_QUESTION)
+					if dlg.ShowModal() == wx.ID_YES:
+						new_keymap = 'win11'
+						get_app().prefs.keymap = new_keymap
+						self.advanced.keymap_choice.SetSelection(self.advanced.keymaps.index('win11'))
+						keymap_changed = True
+					dlg.Destroy()
 
 			if get_app().prefs.invisible and not main.window.invisible:
 				main.window.register_keys()
@@ -654,6 +716,15 @@ class OptionsGui(wx.Dialog):
 		get_app().prefs.gemini_api_key = self.ai_tab.gemini_api_key.GetValue()
 		get_app().prefs.gemini_model = self.ai_tab.gemini_models[self.ai_tab.gemini_model.GetSelection()]
 		get_app().prefs.ai_image_prompt = self.ai_tab.ai_image_prompt.GetValue()
+		# Audio settings
+		selected_idx = self.audio_tab.device_choice.GetSelection()
+		if selected_idx >= 0 and selected_idx < len(self.audio_tab.device_indices):
+			new_device = self.audio_tab.device_indices[selected_idx]
+			if get_app().prefs.audio_output_device != new_device:
+				get_app().prefs.audio_output_device = new_device
+				# Apply immediately
+				import sound
+				sound.init_audio_output(new_device)
 		if get_app().prefs.reversed!=self.general.reversed.GetValue():
 			reverse=True
 		else:
@@ -669,6 +740,7 @@ class OptionsGui(wx.Dialog):
 			get_app().prefs.quoteTemplate != self.templates.quoteTemplate.GetValue() or
 			get_app().prefs.messageTemplate != self.templates.messageTemplate.GetValue() or
 			get_app().prefs.notificationTemplate != self.templates.notificationTemplate.GetValue() or
+			get_app().prefs.include_media_descriptions != self.templates.include_media_descriptions.GetValue() or
 			get_app().prefs.use24HourTime != self.general.use24HourTime.GetValue() or
 			get_app().prefs.cw_mode != new_cw_mode):
 			refresh=True
@@ -682,6 +754,7 @@ class OptionsGui(wx.Dialog):
 		get_app().prefs.copyTemplate=self.templates.copyTemplate.GetValue()
 		get_app().prefs.userTemplate=self.templates.userTemplate.GetValue()
 		get_app().prefs.notificationTemplate=self.templates.notificationTemplate.GetValue()
+		get_app().prefs.include_media_descriptions=self.templates.include_media_descriptions.GetValue()
 		get_app().prefs.autoOpenSingleURL=self.general.autoOpenSingleURL.GetValue()
 		get_app().prefs.auto_open_audio_player=self.general.auto_open_audio_player.GetValue()
 		get_app().prefs.stop_audio_on_close=self.general.stop_audio_on_close.GetValue()
