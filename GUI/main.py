@@ -681,11 +681,9 @@ class MainGui(wx.Frame):
 
 	def _switch_to_account(self, account):
 		"""Switch UI to display the given account's timelines."""
-		# Refresh the timeline list for this account
-		self.list.Clear()
+		# Refresh the timeline list for this account - use Set() for batch update
 		timelines = account.list_timelines()
-		for tl in timelines:
-			self.list.Insert(tl.name, self.list.GetCount())
+		self.list.Set([tl.name for tl in timelines])
 
 		# Restore the account's last selected timeline, or default to first
 		if account.currentIndex is not None and account.currentIndex < len(timelines):
@@ -747,13 +745,14 @@ class MainGui(wx.Frame):
 
 	def refreshTimelines(self):
 		old_selection=self.list.GetSelection()
-		self.list.Clear()
-		for i in get_app().currentAccount.list_timelines():
-			self.list.Insert(i.name,self.list.GetCount())
+		# Use Set() for batch update - faster than Clear() + individual Insert()
+		timeline_names = [tl.name for tl in get_app().currentAccount.list_timelines()]
+		self.list.Set(timeline_names)
 		try:
 			self.list.SetSelection(old_selection)
 		except:
-			self.list.SetSelection(1)
+			if self.list.GetCount() > 0:
+				self.list.SetSelection(min(1, self.list.GetCount() - 1))
 
 	def on_list_change(self, event):
 		get_app().currentAccount.currentTimeline=get_app().currentAccount.list_timelines()[self.list.GetSelection()]
@@ -800,13 +799,16 @@ class MainGui(wx.Frame):
 	def refreshList(self):
 		stuffage=get_app().currentAccount.currentTimeline.get()
 		self.list2.Freeze()
-		self.list2.Clear()
-		for i in stuffage:
-			self.list2.Append(i)
+		# Use Set() for batch update - much faster than Clear() + individual Append()
+		self.list2.Set(stuffage)
 		try:
 			self.list2.SetSelection(get_app().currentAccount.currentTimeline.index)
 		except:
-			self.list2.SetSelection(get_app().currentAccount.currentTimeline.index-1)
+			try:
+				self.list2.SetSelection(get_app().currentAccount.currentTimeline.index-1)
+			except:
+				if self.list2.GetCount() > 0:
+					self.list2.SetSelection(0)
 		self.list2.Thaw()
 
 	def OnViewUserDb(self, event=None):
@@ -842,16 +844,20 @@ class MainGui(wx.Frame):
 	def onRefresh(self,event=None):
 		threading.Thread(target=get_app().currentAccount.currentTimeline.load, daemon=True).start()
 
-	def add_to_list(self,list):
+	def add_to_list(self, items):
+		if not items:
+			return
 		self.list2.Freeze()
-		for i in list:
-			self.list2.Insert(i,0)
+		# InsertItems is faster than individual Insert calls
+		self.list2.InsertItems(items, 0)
 		self.list2.Thaw()
 
-	def append_to_list(self,list):
+	def append_to_list(self, items):
+		if not items:
+			return
 		self.list2.Freeze()
-		for i in list:
-			self.list2.Insert(i,self.list2.GetCount())
+		# AppendItems would be ideal but wx doesn't have it - use InsertItems at end
+		self.list2.InsertItems(items, self.list2.GetCount())
 		self.list2.Thaw()
 
 	def OnView(self,event=None):
