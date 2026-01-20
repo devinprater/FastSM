@@ -60,6 +60,8 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnOptions, m_options)
 		m_account_options = menu.Append(-1, "Account options\tCtrl+Shift+,", "account_options")
 		self.Bind(wx.EVT_MENU, self.OnAccountOptions, m_account_options)
+		m_hide_window = menu.Append(-1, "Hide Window\tCtrl+Shift+W", "hide_window")
+		self.Bind(wx.EVT_MENU, self.OnHideWindow, m_hide_window)
 		m_close = menu.Append(wx.ID_EXIT, "Exit\tAlt+X", "exit")
 		self.Bind(wx.EVT_MENU, self.OnClose, m_close)
 		self.menuBar.Append(menu, "&Application")
@@ -464,6 +466,10 @@ class MainGui(wx.Frame):
 								delattr(status, '_display_cache')
 							except (AttributeError, TypeError):
 								pass
+
+	def OnHideWindow(self, event=None):
+		"""Hide the window (menu handler)."""
+		self.ToggleWindow()
 
 	def ToggleWindow(self):
 		# Window hiding not supported on Mac
