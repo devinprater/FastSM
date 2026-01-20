@@ -548,14 +548,24 @@ class UserViewGui(wx.Dialog):
 				pass  # Fall back to basic profile if fetch fails
 
 		# Check relationship with this user
+		relationship_status = ""
 		try:
 			relationships = self.account.api.account_relationships(id=user.id)
 			if relationships and len(relationships) > 0:
 				rel = relationships[0]
 				following = getattr(rel, 'following', False)
+				followed_by = getattr(rel, 'followed_by', False)
 				muting = getattr(rel, 'muting', False)
 				blocking = getattr(rel, 'blocking', False)
 				showing_reblogs = getattr(rel, 'showing_reblogs', True)
+
+				# Build relationship status string
+				if following and followed_by:
+					relationship_status = "You follow each other"
+				elif following:
+					relationship_status = "You follow them"
+				elif followed_by:
+					relationship_status = "Follows you"
 
 				if following:
 					self.unfollow.Enable(True)
@@ -603,12 +613,49 @@ class UserViewGui(wx.Dialog):
 					self.unblock.Enable(False)
 					self.block.Enable(True)
 		except:
-			self.follow.Enable(True)
-			self.unfollow.Enable(True)
-			self.mute.Enable(True)
-			self.unmute.Enable(True)
-			self.block.Enable(True)
-			self.unblock.Enable(True)
+			# Try Bluesky viewer attribute as fallback
+			viewer = getattr(user, 'viewer', None)
+			if viewer:
+				following = getattr(viewer, 'following', None) is not None
+				followed_by = getattr(viewer, 'followedBy', None) is not None
+				muting = getattr(viewer, 'muted', False)
+				blocking = getattr(viewer, 'blocking', None) is not None
+
+				# Build relationship status string
+				if following and followed_by:
+					relationship_status = "You follow each other"
+				elif following:
+					relationship_status = "You follow them"
+				elif followed_by:
+					relationship_status = "Follows you"
+
+				if following:
+					self.unfollow.Enable(True)
+					self.follow.Enable(False)
+				else:
+					self.unfollow.Enable(False)
+					self.follow.Enable(True)
+
+				if muting:
+					self.unmute.Enable(True)
+					self.mute.Enable(False)
+				else:
+					self.unmute.Enable(False)
+					self.mute.Enable(True)
+
+				if blocking:
+					self.unblock.Enable(True)
+					self.block.Enable(False)
+				else:
+					self.unblock.Enable(False)
+					self.block.Enable(True)
+			else:
+				self.follow.Enable(True)
+				self.unfollow.Enable(True)
+				self.mute.Enable(True)
+				self.unmute.Enable(True)
+				self.block.Enable(True)
+				self.unblock.Enable(True)
 			if self.show_boosts is not None:
 				self.show_boosts.Enable(True)
 				self.hide_boosts.Enable(True)
@@ -652,7 +699,10 @@ class UserViewGui(wx.Dialog):
 		if last_status:
 			extra += "\r\nLast posted: " + str(last_status)
 
-		info = "Name: " + display_name + "\r\nUsername: @" + user.acct + "\r\nBio: " + bio + extra + "\r\nFollowers: " + str(followers_count) + "\r\nFollowing: " + str(following_count) + "\r\nPosts: " + str(statuses_count) + "\r\nCreated: " + (self.account.app.parse_date(created_at) if created_at else "Unknown") + "\r\nLocked: " + str(locked)
+		info = "Name: " + display_name + "\r\nUsername: @" + user.acct
+		if relationship_status:
+			info += "\r\n" + relationship_status
+		info += "\r\nBio: " + bio + extra + "\r\nFollowers: " + str(followers_count) + "\r\nFollowing: " + str(following_count) + "\r\nPosts: " + str(statuses_count) + "\r\nCreated: " + (self.account.app.parse_date(created_at) if created_at else "Unknown") + "\r\nLocked: " + str(locked)
 		self.text.SetValue(info)
 
 		if platform.system() == "Darwin":
