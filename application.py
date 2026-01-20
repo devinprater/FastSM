@@ -700,20 +700,36 @@ class Application:
 		return [s.strip(bad_chars) for s in url_re2.findall(text)]
 
 	def find_urls_in_status(self, s):
-		"""Find URLs in a Mastodon status"""
+		"""Find URLs in a status (Mastodon or Bluesky)"""
 		urls = []
 
+		# Get card URL (external link embed)
 		if hasattr(s, 'card') and s.card:
 			if hasattr(s.card, 'url') and s.card.url:
 				urls.append(s.card.url)
 
+		# Get Bluesky facet links (URLs embedded in post text)
+		if hasattr(s, '_facet_links') and s._facet_links:
+			for link in s._facet_links:
+				if link not in urls:
+					urls.append(link)
+
+		# Get media attachment URLs
 		if hasattr(s, 'media_attachments'):
 			for media in s.media_attachments:
 				if hasattr(media, 'url') and media.url:
 					urls.append(media.url)
 
-		if hasattr(s, 'content'):
+		# Get URLs from HTML content (Mastodon)
+		if hasattr(s, 'content') and s.content:
 			text_urls = self.find_urls_in_text(self.strip_html(s.content))
+			for url in text_urls:
+				if url not in urls:
+					urls.append(url)
+
+		# Get URLs from plain text (Bluesky) - only if no facet links found
+		if hasattr(s, 'text') and s.text and not hasattr(s, '_facet_links'):
+			text_urls = self.find_urls_in_text(s.text)
 			for url in text_urls:
 				if url not in urls:
 					urls.append(url)

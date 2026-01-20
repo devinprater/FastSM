@@ -136,6 +136,54 @@ def extract_mentions_from_facets(facets) -> List[UniversalMention]:
     return mentions
 
 
+def extract_links_from_facets(facets) -> List[str]:
+    """Extract link URLs from Bluesky facets."""
+    links = []
+    if not facets:
+        return links
+
+    for facet in facets:
+        features = get_attr(facet, 'features', [])
+        for feature in features:
+            # Check if it's a link feature
+            feature_type = get_attr(feature, '$type', '') or get_attr(feature, 'py_type', '')
+            if 'link' in str(feature_type).lower():
+                uri = get_attr(feature, 'uri', '')
+                if uri and uri not in links:
+                    links.append(uri)
+    return links
+
+
+def extract_card_from_embed(embed):
+    """Extract external embed (card) from Bluesky embed.
+
+    Returns a dict with url, title, description, image fields or None.
+    """
+    if not embed:
+        return None
+
+    embed_type = get_attr(embed, '$type', '') or get_attr(embed, 'py_type', '')
+
+    # Handle external embed (link cards)
+    if 'external' in str(embed_type).lower():
+        external = get_attr(embed, 'external', None)
+        if external:
+            return type('Card', (), {
+                'url': get_attr(external, 'uri', ''),
+                'title': get_attr(external, 'title', ''),
+                'description': get_attr(external, 'description', ''),
+                'image': get_attr(external, 'thumb', None),
+            })()
+
+    # Handle recordWithMedia that might have external embed
+    if 'recordWithMedia' in str(embed_type).lower():
+        inner_media = get_attr(embed, 'media', None)
+        if inner_media:
+            return extract_card_from_embed(inner_media)
+
+    return None
+
+
 def extract_media_from_embed(embed) -> List[UniversalMedia]:
     """Extract media attachments from Bluesky embed."""
     media = []
@@ -385,6 +433,9 @@ def bluesky_post_to_universal(post, author=None, platform_data=None) -> Optional
     embed = get_attr(post, 'embed', None)
     media_attachments = extract_media_from_embed(embed)
 
+    # Extract card (external link embed)
+    card = extract_card_from_embed(embed)
+
     # Handle quote posts
     quote = None
     if embed:
@@ -395,11 +446,13 @@ def bluesky_post_to_universal(post, author=None, platform_data=None) -> Optional
                 quoted_author = get_attr(quoted_record, 'author', None)
                 quote = bluesky_post_to_universal(quoted_record, quoted_author)
 
-    # Get mentions from facets in record
+    # Get mentions and links from facets in record
     mentions = []
+    facet_links = []
     if record:
         facets = get_attr(record, 'facets', [])
         mentions = extract_mentions_from_facets(facets)
+        facet_links = extract_links_from_facets(facets)
 
     # Get web URL
     handle = get_attr(post_author, 'handle', '') if post_author else ''
@@ -418,7 +471,7 @@ def bluesky_post_to_universal(post, author=None, platform_data=None) -> Optional
                 if val:
                     labels.append({'val': val})
 
-    return UniversalStatus(
+    status = UniversalStatus(
         id=uri,  # Use full URI as ID for API operations
         account=universal_author,
         content=text,  # Bluesky uses plain text
@@ -435,12 +488,18 @@ def bluesky_post_to_universal(post, author=None, platform_data=None) -> Optional
         url=web_url,
         visibility=None,  # Bluesky doesn't have visibility
         spoiler_text=None,  # Bluesky uses labels instead
-        card=None,  # Could extract external embeds
+        card=card,  # External link embed
         poll=None,  # Bluesky doesn't have polls
         pinned=False,  # Bluesky handles pinned differently
         _platform_data=platform_data or post,
         _platform='bluesky',
     )
+
+    # Store facet links for URL extraction
+    if facet_links:
+        status._facet_links = facet_links
+
+    return status
 
 
 def bluesky_notification_to_universal(notification) -> Optional[UniversalNotification]:
