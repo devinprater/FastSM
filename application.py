@@ -535,6 +535,26 @@ class Application:
 					else:
 						text += f" ({type_display}) with no description"
 
+			# Add card (external link embed) information - especially useful for Bluesky
+			# posts that only contain a link with no text
+			card = getattr(s, 'card', None)
+			if card:
+				card_title = getattr(card, 'title', None) if not isinstance(card, dict) else card.get('title')
+				card_description = getattr(card, 'description', None) if not isinstance(card, dict) else card.get('description')
+				if card_title or card_description:
+					# Only add card info if there's something to show
+					card_parts = []
+					if card_title:
+						card_parts.append(card_title)
+					if card_description:
+						card_parts.append(card_description)
+					card_text = " - ".join(card_parts)
+					# If text is empty, use card as main text; otherwise append
+					if not text.strip():
+						text = f"(Link) {card_text}"
+					else:
+						text += f" (Link) {card_text}"
+
 			# Add poll information
 			if hasattr(s, 'poll') and s.poll:
 				poll = s.poll
@@ -734,8 +754,12 @@ class Application:
 		return [s.strip(bad_chars) for s in url_re2.findall(text)]
 
 	def find_urls_in_status(self, s):
-		"""Find URLs in a status (Mastodon or Bluesky)"""
+		"""Find URLs in a status (Mastodon or Bluesky)
+
+		Returns URLs in order: text/link URLs first, then media URLs
+		"""
 		urls = []
+		media_urls = []
 
 		# For reblogged/boosted posts, also check the inner post
 		post_to_check = s
@@ -753,12 +777,6 @@ class Application:
 				if link not in urls:
 					urls.append(link)
 
-		# Get media attachment URLs
-		if hasattr(post_to_check, 'media_attachments'):
-			for media in post_to_check.media_attachments:
-				if hasattr(media, 'url') and media.url:
-					urls.append(media.url)
-
 		# Get URLs from HTML content (Mastodon)
 		if hasattr(post_to_check, 'content') and post_to_check.content:
 			text_urls = self.find_urls_in_text(self.strip_html(post_to_check.content))
@@ -772,6 +790,16 @@ class Application:
 			for url in text_urls:
 				if url not in urls:
 					urls.append(url)
+
+		# Get media attachment URLs (added last so they appear after text URLs)
+		if hasattr(post_to_check, 'media_attachments'):
+			for media in post_to_check.media_attachments:
+				if hasattr(media, 'url') and media.url:
+					if media.url not in urls:
+						media_urls.append(media.url)
+
+		# Combine: text URLs first, then media URLs
+		urls.extend(media_urls)
 
 		# Also check quoted posts for media
 		if hasattr(post_to_check, 'quote') and post_to_check.quote:

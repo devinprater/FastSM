@@ -1001,17 +1001,9 @@ class timeline(object):
 					objs2 = filtered_objs2
 
 				if self.app.currentAccount == self.account and self.account.currentTimeline == self:
-					if not back and not self.initial:
-						if not self.app.prefs.reversed:
-							wx.CallAfter(main.window.add_to_list, self.prepare(objs2))
-						else:
-							# objs2 is already in correct order (oldest_new first) for appending
-							wx.CallAfter(main.window.append_to_list, self.prepare(objs2))
-					else:
-						if not self.app.prefs.reversed:
-							wx.CallAfter(main.window.append_to_list, self.prepare(objs2))
-						else:
-							wx.CallAfter(main.window.add_to_list, self.prepare(objs2))
+					# Always use refreshList to ensure display list matches statuses
+					# This avoids synchronization issues with incremental updates
+					wx.CallAfter(main.window.refreshList)
 
 				if items == []:
 					if not self.app.prefs.reversed:
@@ -1023,20 +1015,14 @@ class timeline(object):
 					import time
 					self._last_load_time = time.time()
 
+				# Adjust index when items are added before current position
 				if not back and not self.initial:
 					if not self.app.prefs.reversed:
-						# Use filtered count (len(objs2)) for index adjustment, not total newitems
+						# New items added at front, shift index to stay on same item
 						self.index += len(objs2)
-						if self.app.currentAccount == self.account and self.account.currentTimeline == self and len(self.statuses) > 0:
-							try:
-								wx.CallAfter(main.window.list2.SetSelection, self.index)
-							except:
-								pass
 				if back and self.app.prefs.reversed:
-					# Use filtered count (len(objs2)) for index adjustment, not total newitems
+					# Previous items added at front, shift index to stay on same item
 					self.index += len(objs2)
-					if self.app.currentAccount == self.account and self.account.currentTimeline == self and len(self.statuses) > 0:
-						wx.CallAfter(main.window.list2.SetSelection, self.index)
 
 				if self.initial:
 					if not self.app.prefs.reversed:
