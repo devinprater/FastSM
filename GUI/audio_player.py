@@ -17,7 +17,10 @@ class AudioPlayerDialog(wx.Dialog):
 		global _audio_player_dialog
 		_audio_player_dialog = self
 
-		wx.Dialog.__init__(self, parent, title="Audio Player", size=(400, 200),
+		# Include sound engine in title
+		engine_name = "VLC" if sound.player_type == 'vlc' else "sound_lib"
+		title = f"Audio Player ({engine_name})"
+		wx.Dialog.__init__(self, parent, title=title, size=(400, 200),
 			style=wx.DEFAULT_DIALOG_STYLE | wx.STAY_ON_TOP)
 
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
