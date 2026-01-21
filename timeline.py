@@ -374,6 +374,20 @@ class timeline(object):
 			return 'notification'
 		return 'status'
 
+	def get_cache_key(self):
+		"""Get the cache key tuple for this timeline (for cleanup purposes)."""
+		cache = self._get_cache()
+		if cache:
+			data_key = cache._get_timeline_key(self.type, self.name, self._get_timeline_data_key())
+			return (self.type, self.name, data_key)
+		return None
+
+	def clear_cache(self):
+		"""Clear the cache for this timeline."""
+		cache = self._get_cache()
+		if cache and cache.is_available():
+			cache.clear_timeline(self.type, self.name, self._get_timeline_data_key())
+
 	def _load_from_cache(self):
 		"""Load timeline items from cache (synchronous).
 

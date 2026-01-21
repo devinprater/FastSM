@@ -604,6 +604,21 @@ class MainGui(wx.Frame):
 						tl._cache_timeline()
 				except Exception as e:
 					print(f"Error caching {tl.name}: {e}")
+		# Clean up orphaned cache data (timelines that were dismissed)
+		for account in get_app().accounts:
+			if hasattr(account, '_platform') and account._platform:
+				cache = getattr(account._platform, 'timeline_cache', None)
+				if cache and cache.is_available():
+					try:
+						# Get active timeline keys
+						active_keys = []
+						for tl in account.timelines:
+							key = tl.get_cache_key()
+							if key:
+								active_keys.append(key)
+						cache.cleanup_orphaned_data(active_keys)
+					except Exception as e:
+						print(f"Error cleaning up cache: {e}")
 		if platform.system()!="Darwin":
 			self.trayicon.on_exit(event,False)
 		# Clean up account resources (close timeline caches)
@@ -1621,6 +1636,11 @@ class MainGui(wx.Frame):
 						rut for rut in get_app().currentAccount.prefs.remote_user_timelines
 						if not (rut.get('url') == inst_url and rut.get('username') == username and rut.get('filter') == tl_filter)
 					]
+				# Clear cached data for this timeline
+				try:
+					tl.clear_cache()
+				except Exception as e:
+					print(f"Error clearing cache for {tl.name}: {e}")
 				get_app().currentAccount.timelines.remove(tl)
 				sound.play(get_app().currentAccount,"close")
 				self.refreshTimelines()

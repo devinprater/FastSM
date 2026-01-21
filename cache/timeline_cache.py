@@ -695,6 +695,80 @@ class TimelineCache:
             except Exception as e:
                 print(f"Cache clear_all error: {e}")
 
+    def cleanup_orphaned_data(self, active_timeline_keys: List[tuple]):
+        """Remove cached data for timelines that no longer exist.
+
+        Args:
+            active_timeline_keys: List of (timeline_type, timeline_name, timeline_data_key) tuples
+                                  for timelines that should be kept
+        """
+        if not self.is_available():
+            return
+
+        with self._lock:
+            try:
+                cursor = self._conn.cursor()
+
+                # Get all cached timeline keys
+                cursor.execute('''
+                    SELECT DISTINCT timeline_type, timeline_name, timeline_data
+                    FROM timeline_metadata
+                ''')
+                cached_keys = set((row[0], row[1], row[2]) for row in cursor.fetchall())
+
+                # Find orphaned keys (in cache but not active)
+                active_set = set(active_timeline_keys)
+                orphaned_keys = cached_keys - active_set
+
+                if orphaned_keys:
+                    # Delete orphaned timeline items and metadata
+                    for tl_type, tl_name, tl_data in orphaned_keys:
+                        cursor.execute('''
+                            DELETE FROM timeline_items
+                            WHERE timeline_type = ? AND timeline_name = ? AND timeline_data = ?
+                        ''', (tl_type, tl_name, tl_data))
+                        cursor.execute('''
+                            DELETE FROM timeline_metadata
+                            WHERE timeline_type = ? AND timeline_name = ? AND timeline_data = ?
+                        ''', (tl_type, tl_name, tl_data))
+
+                    self._conn.commit()
+                    print(f"Cache cleanup: removed {len(orphaned_keys)} orphaned timeline(s)")
+
+                    # Clean up orphaned statuses and notifications
+                    self._cleanup_orphaned_items(cursor)
+
+            except Exception as e:
+                print(f"Cache cleanup_orphaned_data error: {e}")
+
+    def _cleanup_orphaned_items(self, cursor):
+        """Remove statuses and notifications not referenced by any timeline."""
+        try:
+            # Delete statuses not in any timeline
+            cursor.execute('''
+                DELETE FROM statuses
+                WHERE id NOT IN (
+                    SELECT item_id FROM timeline_items WHERE item_type = 'status'
+                )
+            ''')
+            deleted_statuses = cursor.rowcount
+
+            # Delete notifications not in any timeline
+            cursor.execute('''
+                DELETE FROM notifications
+                WHERE id NOT IN (
+                    SELECT item_id FROM timeline_items WHERE item_type = 'notification'
+                )
+            ''')
+            deleted_notifications = cursor.rowcount
+
+            if deleted_statuses > 0 or deleted_notifications > 0:
+                self._conn.commit()
+                print(f"Cache cleanup: removed {deleted_statuses} orphaned statuses, {deleted_notifications} orphaned notifications")
+
+        except Exception as e:
+            print(f"Cache _cleanup_orphaned_items error: {e}")
+
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         if not self.is_available():
