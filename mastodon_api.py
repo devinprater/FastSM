@@ -35,7 +35,6 @@ class mastodon(object):
 
 	def __init__(self, app, index):
 		self.app = app
-		self.stream_thread = None
 		self.ready = False
 		self.timelines = []
 		self.currentTimeline = None
@@ -533,7 +532,10 @@ class mastodon(object):
 			if self.stream_thread is not None and self.stream_thread.is_alive():
 				return  # Stream already running
 
-			self.stream_listener = streaming.MastodonStreamListener(self)
+			# Only create new listener if we don't have one yet
+			if self.stream_listener is None:
+				self.stream_listener = streaming.MastodonStreamListener(self)
+
 			self.stream_thread = threading.Thread(
 				target=self._run_stream,
 				daemon=True
@@ -552,13 +554,19 @@ class mastodon(object):
 
 		while True:
 			try:
+				# Ensure API is available before attempting stream
+				if not hasattr(self, 'api') or self.api is None:
+					time.sleep(5)
+					continue
+
 				self.stream = self.api.stream_user(self.stream_listener, run_async=False, reconnect_async=True)
 				# If stream exits normally, reset error count
 				consecutive_errors = 0
 			except Exception as e:
 				error_str = str(e)
-				# Don't count transient parse errors toward consecutive errors
-				if "Missing field" in error_str or "MalformedEventError" in error_str:
+				# Don't count transient errors toward consecutive errors
+				# These can happen during reconnection or network issues
+				if "Missing field" in error_str or "MalformedEventError" in error_str or "handle_stream" in error_str:
 					# Brief pause then retry without counting as real error
 					time.sleep(2)
 					continue
