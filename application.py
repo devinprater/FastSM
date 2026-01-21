@@ -533,11 +533,17 @@ class Application:
 			# Add poll information
 			if hasattr(s, 'poll') and s.poll:
 				poll = s.poll
-				is_expired = getattr(poll, 'expired', False)
-				has_voted = getattr(poll, 'voted', False)
-				options = getattr(poll, 'options', [])
-				own_votes = getattr(poll, 'own_votes', []) or []
-				votes_count = getattr(poll, 'votes_count', 0)
+				# Handle both object and dict (from cache)
+				def get_poll_attr(obj, name, default=None):
+					if isinstance(obj, dict):
+						return obj.get(name, default)
+					return getattr(obj, name, default)
+
+				is_expired = get_poll_attr(poll, 'expired', False)
+				has_voted = get_poll_attr(poll, 'voted', False)
+				options = get_poll_attr(poll, 'options', [])
+				own_votes = get_poll_attr(poll, 'own_votes', []) or []
+				votes_count = get_poll_attr(poll, 'votes_count', 0)
 
 				# Build poll status
 				if is_expired:
@@ -550,8 +556,8 @@ class Application:
 				# Build options list with vote info
 				option_texts = []
 				for i, opt in enumerate(options):
-					opt_title = getattr(opt, 'title', str(opt))
-					opt_votes = getattr(opt, 'votes_count', 0)
+					opt_title = get_poll_attr(opt, 'title', str(opt))
+					opt_votes = get_poll_attr(opt, 'votes_count', 0)
 					if is_expired or has_voted:
 						# Show results
 						if votes_count > 0:
@@ -659,13 +665,19 @@ class Application:
 			# Add poll info for notifications with polls
 			if hasattr(status, 'poll') and status.poll:
 				poll = status.poll
-				is_expired = getattr(poll, 'expired', False)
-				options = getattr(poll, 'options', [])
-				votes_count = getattr(poll, 'votes_count', 0)
+				# Handle both object and dict (from cache)
+				def get_poll_attr(obj, name, default=None):
+					if isinstance(obj, dict):
+						return obj.get(name, default)
+					return getattr(obj, name, default)
+
+				is_expired = get_poll_attr(poll, 'expired', False)
+				options = get_poll_attr(poll, 'options', [])
+				votes_count = get_poll_attr(poll, 'votes_count', 0)
 				option_texts = []
 				for opt in options:
-					opt_title = getattr(opt, 'title', str(opt))
-					opt_votes = getattr(opt, 'votes_count', 0)
+					opt_title = get_poll_attr(opt, 'title', str(opt))
+					opt_votes = get_poll_attr(opt, 'votes_count', 0)
 					if is_expired and votes_count > 0:
 						pct = (opt_votes / votes_count) * 100
 						option_texts.append(f"{opt_title}: {pct:.0f}%")

@@ -14,6 +14,19 @@ from models import (
 )
 
 
+def _is_json_serializable(value) -> bool:
+    """Check if a value can be JSON serialized."""
+    if value is None:
+        return True
+    if isinstance(value, (str, int, float, bool)):
+        return True
+    if isinstance(value, (list, tuple)):
+        return all(_is_json_serializable(v) for v in value)
+    if isinstance(value, dict):
+        return all(_is_json_serializable(v) for v in value.values())
+    return False
+
+
 def _datetime_to_str(dt: Optional[datetime]) -> Optional[str]:
     """Convert datetime to ISO format string."""
     if dt is None:
@@ -176,13 +189,34 @@ def status_to_row(status: UniversalStatus, include_nested: bool = True) -> Dict[
     poll_json = None
     if status.poll:
         try:
-            if hasattr(status.poll, '__dict__'):
-                poll_json = json.dumps({k: v for k, v in status.poll.__dict__.items()
-                                       if not k.startswith('_')})
-            elif isinstance(status.poll, dict):
-                poll_json = json.dumps(status.poll)
-        except (TypeError, ValueError):
-            pass
+            poll = status.poll
+            if hasattr(poll, '__dict__'):
+                # Convert poll object to serializable dict
+                poll_dict = {}
+                for k, v in poll.__dict__.items():
+                    if k.startswith('_'):
+                        continue
+                    # Handle options list - each option may be an object
+                    if k == 'options' and isinstance(v, list):
+                        poll_dict[k] = []
+                        for opt in v:
+                            if hasattr(opt, '__dict__'):
+                                poll_dict[k].append({ok: ov for ok, ov in opt.__dict__.items()
+                                                    if not ok.startswith('_') and _is_json_serializable(ov)})
+                            elif isinstance(opt, dict):
+                                poll_dict[k].append(opt)
+                            else:
+                                poll_dict[k].append(str(opt))
+                    elif _is_json_serializable(v):
+                        poll_dict[k] = v
+                    elif hasattr(v, 'isoformat'):
+                        # Handle datetime
+                        poll_dict[k] = v.isoformat()
+                poll_json = json.dumps(poll_dict)
+            elif isinstance(poll, dict):
+                poll_json = json.dumps(poll)
+        except (TypeError, ValueError) as e:
+            print(f"[CACHE] Failed to serialize poll: {e}")
 
     # Get reblog/quote IDs
     reblog_id = None
