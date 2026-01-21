@@ -875,36 +875,57 @@ class timeline(object):
 			return (0, False)
 		self._loading = True
 		try:
-			return self._do_load_here(speech)
+			result = self._do_load_here(speech)
+			# Clear the anchor after single load (load_all_here manages its own cleanup)
+			if not self._loading_all_active:
+				self._clear_load_here_anchor()
+			return result
 		finally:
 			self._loading = False
 
+	def _clear_load_here_anchor(self):
+		"""Clear the load_here anchor point."""
+		self._load_here_anchor_id = None
+		self._load_here_anchor_index = None
+		self._load_here_items_inserted = 0
+
 	def _do_load_here(self, speech=True):
 		"""Internal implementation of load_here."""
-		# Get the current status
+		# Get the current status - but only set the anchor on first call
 		if not self.statuses or self.index >= len(self.statuses):
 			if speech:
 				speak.speak("No current post")
 			return (0, False)
 
-		current_status = self.statuses[self.index]
-		current_id = current_status.id
+		# Store the starting position and ID on first call (anchor point)
+		# This ensures subsequent calls in load_all_here use the same reference point
+		if not hasattr(self, '_load_here_anchor_id') or self._load_here_anchor_id is None:
+			self._load_here_anchor_id = self.statuses[self.index].id
+			self._load_here_anchor_index = self.index
+			self._load_here_items_inserted = 0
+
+		current_id = self._load_here_anchor_id
+		# Calculate the actual insertion position based on items already inserted
+		base_insert_index = self._load_here_anchor_index + self._load_here_items_inserted
 
 		# Build the set of existing IDs for quick lookup
 		existing_ids = set(self._status_ids)
 
-		# Determine the ID of the next post (if any) - posts after current position
+		# Determine the ID of the next post (if any) - posts after the insertion point
+		# Use the anchor index, not the user's current position
 		# For normal order: items at higher indices are older (lower IDs)
-		# For reversed order: items at higher indices are newer (higher IDs)
+		# For reversed order: items at lower indices are older (lower IDs)
 		next_existing_id = None
 		if not self.app.prefs.reversed:
-			# Normal order: check if there's a post after current (older post)
-			if self.index + 1 < len(self.statuses):
-				next_existing_id = self.statuses[self.index + 1].id
+			# Normal mode: insertion point is after anchor, check next post (older)
+			check_index = base_insert_index + 1
+			if check_index < len(self.statuses):
+				next_existing_id = self.statuses[check_index].id
 		else:
-			# Reversed order: check if there's a post before current (older post)
-			if self.index > 0:
-				next_existing_id = self.statuses[self.index - 1].id
+			# Reversed mode: insertion point is at anchor, check post before anchor (older)
+			check_index = self._load_here_anchor_index - 1
+			if check_index >= 0:
+				next_existing_id = self.statuses[check_index].id
 
 		# Fetch posts using current post's ID as max_id
 		load_kwargs = dict(self.prev_kwargs)
@@ -991,33 +1012,37 @@ class timeline(object):
 
 		# Insert the new items at the correct position
 		# API returns items newest-to-oldest (item 0 is newest of the older posts)
+		# Use anchor-based position, NOT the user's current position
 		#
 		# Normal mode (newest at top, oldest at bottom):
-		#   - Older posts go at higher indices (after current position)
-		#   - Insert at index+1, index+2, etc.
+		#   - Older posts go at higher indices (after anchor position)
+		#   - Insert at anchor+1+items_already_inserted, anchor+2+items_already_inserted, etc.
 		#
 		# Reversed mode (oldest at top, newest at bottom):
-		#   - Older posts go at lower indices (before current position)
-		#   - Insert repeatedly at current index, which pushes items down
+		#   - Older posts go at lower indices (before anchor position)
+		#   - Insert repeatedly at anchor index, which pushes items down
 		#   - This naturally reverses the order: [A, B, C] inserted at pos 5
-		#     becomes [..., C, B, A, current, ...] with C at 5, B at 6, A at 7
+		#     becomes [..., C, B, A, anchor, ...] with C at 5, B at 6, A at 7
 
+		items_added = 0
 		if not self.app.prefs.reversed:
-			# Normal mode: insert after current position
-			insert_pos = self.index + 1
+			# Normal mode: insert after anchor position
+			insert_pos = base_insert_index + 1
 			for i, item in enumerate(new_items):
-				self._add_status_at_position(item, insert_pos + i)
+				shown = self._add_status_at_position(item, insert_pos + i)
+				if shown:
+					items_added += 1
 		else:
-			# Reversed mode: insert at current position repeatedly
-			# Each insert pushes current and subsequent items down
-			insert_pos = self.index
-			items_inserted = 0
+			# Reversed mode: insert at anchor position repeatedly
+			# Each insert pushes anchor and subsequent items down
+			insert_pos = self._load_here_anchor_index
 			for item in new_items:
 				shown = self._add_status_at_position(item, insert_pos)
 				if shown:
-					# Current post moved down, update our index
-					self.index += 1
-					items_inserted += 1
+					items_added += 1
+
+		# Track total items inserted for subsequent calls
+		self._load_here_items_inserted += items_added
 
 		# Refresh the UI
 		if self.app.currentAccount == self.account and self.account.currentTimeline == self:
@@ -1092,6 +1117,8 @@ class timeline(object):
 		if self._stop_loading_all:
 			speak.speak(f"Loading stopped. {total_loaded} posts loaded.")
 
+		# Clear the anchor point now that we're done
+		self._clear_load_here_anchor()
 		self._loading_all_active = False
 
 	def _do_load(self, back=False, speech=False, items=[]):
