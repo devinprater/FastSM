@@ -577,8 +577,8 @@ class MainGui(wx.Frame):
 				for tl in account.timelines:
 					try:
 						tl.sync_position_to_server()
-					except:
-						pass
+					except Exception as e:
+						print(f"Error syncing {tl.name} position to server: {e}")
 		# Save local position for notifications and mentions timelines
 		for account in get_app().accounts:
 			for tl in account.timelines:
@@ -589,10 +589,30 @@ class MainGui(wx.Frame):
 					elif tl.type == "mentions" and tl.statuses and tl.index < len(tl.statuses):
 						status = tl.statuses[tl.index]
 						account.prefs.last_mentions_id = str(status.id)
-				except:
-					pass
+				except Exception as e:
+					print(f"Error saving {tl.name} position to prefs: {e}")
+			# Explicitly save account prefs to ensure position IDs are persisted
+			try:
+				account.prefs.save()
+			except Exception as e:
+				print(f"Error saving account prefs: {e}")
+		# Save all timeline caches (positions, gaps, etc.) before exit
+		for account in get_app().accounts:
+			for tl in account.timelines:
+				try:
+					if hasattr(tl, '_cache_timeline'):
+						tl._cache_timeline()
+				except Exception as e:
+					print(f"Error caching {tl.name}: {e}")
 		if platform.system()!="Darwin":
 			self.trayicon.on_exit(event,False)
+		# Clean up account resources (close timeline caches)
+		for account in get_app().accounts:
+			if hasattr(account, 'cleanup'):
+				try:
+					account.cleanup()
+				except:
+					pass
 		self.Destroy()
 		sys.exit()
 	
@@ -763,6 +783,10 @@ class MainGui(wx.Frame):
 			self.m_close_timeline.Enable(False)
 
 		self.play_earcon()
+		# Announce if timeline has gaps to fill
+		tl = get_app().currentAccount.currentTimeline
+		if hasattr(tl, '_gaps') and tl._gaps:
+			speak.speak(f"{len(tl._gaps)} gap{'s' if len(tl._gaps) > 1 else ''} to fill")
 		self.refreshList()
 
 	def play_earcon(self):

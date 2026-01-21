@@ -180,10 +180,18 @@ class Application:
 
 		# yt-dlp path for YouTube/etc URL extraction (empty = use bundled or system)
 		self.prefs.ytdlp_path = self.prefs.get("ytdlp_path", "")
+		# yt-dlp cookies file for age-restricted/private videos
+		self.prefs.ytdlp_cookies = self.prefs.get("ytdlp_cookies", "")
+		# Deno path for yt-dlp extractors that need it
+		self.prefs.deno_path = self.prefs.get("deno_path", "")
 		# Whether we've already asked about Windows 11 keymap
 		self.prefs.win11_keymap_asked = self.prefs.get("win11_keymap_asked", False)
 		# Audio output device index (1 = default device in BASS)
 		self.prefs.audio_output_device = self.prefs.get("audio_output_device", 1)
+
+		# Timeline caching settings
+		self.prefs.timeline_cache_enabled = self.prefs.get("timeline_cache_enabled", True)  # Enable timeline caching for fast startup
+		self.prefs.timeline_cache_limit = self.prefs.get("timeline_cache_limit", 1000)  # Max items to cache per timeline
 
 		# Initialize audio output with selected device
 		import sound

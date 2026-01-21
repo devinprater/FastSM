@@ -983,3 +983,8 @@ class mastodon(object):
 	def supports_feature(self, feature: str) -> bool:
 		"""Check if this platform supports a feature."""
 		return self._platform.supports_feature(feature)
+
+	def cleanup(self):
+		"""Clean up resources when account is removed or app is closing."""
+		if self._platform:
+			self._platform.close()

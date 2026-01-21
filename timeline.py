@@ -43,6 +43,10 @@ class timeline(object):
 		self._last_synced_id = None  # Last position synced with server
 		# Set of status IDs for O(1) duplicate checking
 		self._status_ids = set()
+		# Gap tracking for cache - when API refresh doesn't fully connect to cached items
+		# List of gaps, each gap is a dict with 'max_id' (where to load from)
+		self._gaps = []
+		self._gap_newest_cached_id = None  # Newest cached ID (for detecting new gaps after cache load)
 
 		for i in self.app.timeline_settings:
 			if i.account_id == self.account.me.id and i.tl == self.name:
@@ -215,7 +219,13 @@ class timeline(object):
 			self._is_filtered = True
 
 		if self.type != "conversation":
-			threading.Thread(target=self.load, daemon=True).start()
+			# Check if we should load from cache first
+			if self._should_use_cache() and self._load_from_cache():
+				# Cache loaded successfully - spawn background refresh thread
+				threading.Thread(target=self._refresh_after_cache, daemon=True).start()
+			else:
+				# No cache or cache disabled - normal load
+				threading.Thread(target=self.load, daemon=True).start()
 		else:
 			self.load_conversation()
 
@@ -301,6 +311,222 @@ class timeline(object):
 	def has_status(self, status_id):
 		"""Check if a status ID is already in this timeline (O(1) lookup)."""
 		return str(status_id) in self._status_ids
+
+	def has_gap(self):
+		"""Check if there's a gap in the timeline that needs to be filled."""
+		return len(self._gaps) > 0
+
+	def gap_count(self):
+		"""Return the number of gaps in the timeline."""
+		return len(self._gaps)
+
+	def _should_detect_gaps(self):
+		"""Check if gap detection should apply to this timeline type.
+
+		Gap detection only makes sense for chronological, continuous timelines
+		where missing posts matter (like home, notifications, mentions).
+		"""
+		# Timeline types where gaps matter
+		gap_timeline_types = {'home', 'notifications', 'mentions', 'local', 'federated'}
+		return self.type in gap_timeline_types
+
+	# ============ Cache Methods ============
+
+	def _get_cache(self):
+		"""Get the timeline cache from the platform backend, if available."""
+		if hasattr(self.account, '_platform') and self.account._platform:
+			return getattr(self.account._platform, 'timeline_cache', None)
+		return None
+
+	def _should_use_cache(self):
+		"""Check if this timeline should use caching."""
+		# Check global cache enabled
+		if not self.app.prefs.timeline_cache_enabled:
+			return False
+
+		# Check if cache is available
+		cache = self._get_cache()
+		if not cache or not cache.is_available():
+			return False
+
+		# Cacheable timeline types
+		cacheable_types = {
+			'home', 'mentions', 'notifications', 'favourites', 'bookmarks',
+			'user', 'list', 'search', 'feed',
+			'local', 'federated', 'instance', 'remote_user', 'pinned'
+		}
+		# Sent is a special user timeline we should cache
+		if self.type == 'user' and self.name == 'Sent':
+			return True
+
+		return self.type in cacheable_types
+
+	def _get_timeline_data_key(self):
+		"""Get the data key for this timeline for caching."""
+		if self.type in ('user', 'list', 'search', 'feed', 'instance', 'remote_user'):
+			return self.data
+		return None
+
+	def _get_item_type(self):
+		"""Get the item type for this timeline (status or notification)."""
+		if self.type == 'notifications':
+			return 'notification'
+		return 'status'
+
+	def _load_from_cache(self):
+		"""Load timeline items from cache (synchronous).
+
+		Returns True if cache was loaded, False otherwise.
+		"""
+		cache = self._get_cache()
+		if not cache:
+			return False
+
+		try:
+			items, metadata = cache.load_timeline(
+				self.type,
+				self.name,
+				self._get_timeline_data_key(),
+				self._get_item_type()
+			)
+
+			if not items:
+				return False
+
+			# Load items into timeline
+			for item in items:
+				if item is None:
+					continue
+				# Track ID for O(1) duplicate checking
+				if hasattr(item, 'id'):
+					self._status_ids.add(str(item.id))
+				self.statuses.append(item)
+
+			# Set up since_id for next refresh and track for gap detection
+			if metadata.get('since_id') and items:
+				self.update_kwargs['since_id'] = metadata['since_id']
+				# Track newest cached ID for gap detection after API refresh (only for gap-enabled timelines)
+				if self._should_detect_gaps():
+					self._gap_newest_cached_id = metadata['since_id']
+
+			# Restore any saved gaps from cache (only for gap-enabled timelines)
+			if self._should_detect_gaps() and metadata.get('gaps'):
+				self._gaps = metadata['gaps']
+				if self._gaps:
+					speak.speak(f"{len(self._gaps)} gap{'s' if len(self._gaps) > 1 else ''} to fill")
+
+			# Store position ID for restore after API refresh
+			# ID-based restore is more robust than index when new items arrive
+			self._cached_position_id = metadata.get('last_position_id')
+
+			# Set initial position (will be corrected after API refresh using ID)
+			saved_index = metadata.get('last_index', 0)
+			if saved_index >= 0 and saved_index < len(self.statuses):
+				self.index = saved_index
+			elif not self.app.prefs.reversed:
+				self.index = 0
+			else:
+				self.index = len(self.statuses) - 1
+
+			# Invalidate display cache
+			self.invalidate_display_cache()
+
+			# Mark initial load as complete (so API refresh is treated as update, not initial)
+			self.initial = False
+
+			# Notify account that this timeline's initial load is complete
+			if hasattr(self.account, '_on_timeline_initial_load_complete'):
+				self.account._on_timeline_initial_load_complete()
+
+			# Play ready sound if this is the last timeline
+			if self == self.account.timelines[len(self.account.timelines) - 1] and not self.account.ready:
+				self.account.ready = True
+				sound.play(self.account, "ready")
+
+			# Update UI
+			if self.account == self.app.currentAccount and self.account.currentTimeline == self:
+				wx.CallAfter(main.window.refreshList)
+
+			return True
+
+		except Exception as e:
+			print(f"Cache load error for {self.name}: {e}")
+			return False
+
+	def _refresh_after_cache(self):
+		"""Background refresh after loading from cache."""
+		# Do a normal load (will fetch new items from API)
+		# Since initial=False after cache load, this will be treated as an update
+		self.load()
+
+		# Restore position by saved ID after refresh
+		# This is more robust than index-based restore since new items shift positions
+		position_restored = False
+
+		# For notifications/mentions, use the account prefs saved ID
+		if self.type in ("notifications", "mentions"):
+			position_restored = self.sync_local_position()
+		# For other timelines, use the cached position ID
+		elif hasattr(self, '_cached_position_id') and self._cached_position_id:
+			# Find the item with this ID and set index
+			for i, status in enumerate(self.statuses):
+				if str(status.id) == str(self._cached_position_id):
+					self.index = i
+					position_restored = True
+					break
+			if not position_restored:
+				# Position ID not found - item may have been deleted or aged out
+				print(f"Position restore: ID {self._cached_position_id} not found in {self.name} ({len(self.statuses)} items)")
+			# Clean up
+			del self._cached_position_id
+
+		if position_restored and self.app.currentAccount == self.account and self.account.currentTimeline == self:
+			wx.CallAfter(main.window.list2.SetSelection, self.index)
+
+	def _cache_timeline(self):
+		"""Save current timeline items to cache (called after API load)."""
+		if not self._should_use_cache():
+			return
+
+		cache = self._get_cache()
+		if not cache:
+			return
+
+		# Don't cache if no items
+		if not self.statuses:
+			return
+
+		try:
+			# Get cache limit
+			cache_limit = self.app.prefs.timeline_cache_limit
+
+			# Get items to cache - always cache newest items regardless of reversed setting
+			# When reversed=False: newest at start, so take [:limit]
+			# When reversed=True: newest at end, so take [-limit:]
+			if self.app.prefs.reversed:
+				items_to_cache = self.statuses[-cache_limit:] if len(self.statuses) > cache_limit else self.statuses[:]
+			else:
+				items_to_cache = self.statuses[:cache_limit]
+
+			# Get the ID at current position for robust restore
+			position_id = None
+			if self.index >= 0 and self.index < len(self.statuses):
+				position_id = str(self.statuses[self.index].id)
+
+			# Save to cache with gap info and current position
+			cache.save_timeline(
+				self.type,
+				self.name,
+				self._get_timeline_data_key(),
+				items_to_cache,
+				self._get_item_type(),
+				limit=cache_limit,
+				gaps=self._gaps if self._gaps else None,
+				last_index=self.index,
+				last_position_id=position_id
+			)
+		except Exception as e:
+			print(f"Cache save error for {self.name}: {e}")
 
 	def load_conversation(self):
 		status = self.status
@@ -587,12 +813,17 @@ class timeline(object):
 	def _do_load(self, back=False, speech=False, items=[]):
 		if items == []:
 			if back:
-				# Use unfiltered statuses for pagination if filter is applied
-				status_list = getattr(self, '_unfiltered_statuses', None) or self.statuses
-				if not self.app.prefs.reversed:
-					self.prev_kwargs['max_id'] = status_list[len(status_list)-1].id
+				# Check if we should fill a gap first
+				if self._gaps:
+					# Fill the first gap in the list
+					self.prev_kwargs['max_id'] = self._gaps[0]['max_id']
 				else:
-					self.prev_kwargs['max_id'] = status_list[0].id
+					# Normal load previous: use unfiltered statuses for pagination if filter is applied
+					status_list = getattr(self, '_unfiltered_statuses', None) or self.statuses
+					if not self.app.prefs.reversed:
+						self.prev_kwargs['max_id'] = status_list[len(status_list)-1].id
+					else:
+						self.prev_kwargs['max_id'] = status_list[0].id
 			tl = None
 			try:
 				# Determine how many pages to fetch
@@ -736,6 +967,30 @@ class timeline(object):
 					else:
 						self.update_kwargs['since_id'] = tl[len(tl)-1].id
 
+					# Gap detection: if we got a full page on refresh, there might be a gap
+					# This works on any refresh (after cache load, after sleep/hibernate, etc.)
+					# Only for timeline types where gaps matter (home, notifications, mentions, etc.)
+					if self._should_detect_gaps() and not back and not self.initial and self._gap_newest_cached_id:
+						fetch_limit = self.update_kwargs.get('limit', 40)
+						if len(tl) >= fetch_limit:
+							# Got a full page - likely a gap between oldest new item and existing items
+							if not self.app.prefs.reversed:
+								oldest_new_id = str(tl[-1].id)
+							else:
+								oldest_new_id = str(tl[0].id)
+							# Only add gap if the oldest new item doesn't connect to our existing newest
+							if oldest_new_id != self._gap_newest_cached_id:
+								# Add new gap to the front of the list (newest gap first)
+								self._gaps.insert(0, {'max_id': oldest_new_id})
+								speak.speak(f"Gap detected in {self.name}, {len(self._gaps)} gap{'s' if len(self._gaps) > 1 else ''} to fill")
+
+					# Update tracker to newest item for next refresh gap detection (only for gap-enabled timelines)
+					if self._should_detect_gaps():
+						if not self.app.prefs.reversed:
+							self._gap_newest_cached_id = str(tl[0].id)
+						else:
+							self._gap_newest_cached_id = str(tl[-1].id)
+
 				if not back and not self.initial:
 					if not self.app.prefs.reversed:
 						# Use filtered count (len(objs2)) for index adjustment, not total newitems
@@ -775,6 +1030,15 @@ class timeline(object):
 					speak.speak(announcement)
 			if self.initial:
 				self.initial = False
+
+				# Set up gap detection tracker for future refreshes (e.g., after sleep/hibernate)
+				# Only for timeline types where gaps matter
+				if self._should_detect_gaps() and self.statuses:
+					if not self.app.prefs.reversed:
+						self._gap_newest_cached_id = str(self.statuses[0].id)
+					else:
+						self._gap_newest_cached_id = str(self.statuses[-1].id)
+
 				# Sync position from server after initial load (if enabled)
 				# Only sync if user hasn't already moved (position_moved is False on initial load)
 				if not self._position_moved:
@@ -787,6 +1051,8 @@ class timeline(object):
 					synced = self.sync_local_position()
 					if synced and self.app.currentAccount == self.account and self.account.currentTimeline == self:
 						wx.CallAfter(main.window.list2.SetSelection, self.index)
+				# Cache timeline for fast startup (in background to not block)
+				threading.Thread(target=self._cache_timeline, daemon=True).start()
 				# Notify account that this timeline's initial load is complete
 				if hasattr(self.account, '_on_timeline_initial_load_complete'):
 					self.account._on_timeline_initial_load_complete()
@@ -797,6 +1063,25 @@ class timeline(object):
 					synced = self.sync_position_from_server()
 					if synced and self.app.currentAccount == self.account and self.account.currentTimeline == self:
 						wx.CallAfter(main.window.list2.SetSelection, self.index)
+				# Update cache after load previous and check if gap is filled
+				if back:
+					# Check if gap is now filled
+					if self._gaps and tl is not None:
+						fetch_limit = self.prev_kwargs.get('limit', 40)
+						if len(tl) < fetch_limit:
+							# Got partial page - this gap is filled, remove it
+							self._gaps.pop(0)
+							if self._gaps:
+								speak.speak(f"Gap filled, {len(self._gaps)} remaining")
+							else:
+								speak.speak("All gaps filled")
+						else:
+							# Still more items in this gap - update position for next load
+							if not self.app.prefs.reversed:
+								self._gaps[0]['max_id'] = str(tl[-1].id)
+							else:
+								self._gaps[0]['max_id'] = str(tl[0].id)
+					threading.Thread(target=self._cache_timeline, daemon=True).start()
 		if self == self.account.timelines[len(self.account.timelines) - 1] and not self.account.ready:
 			self.account.ready = True
 			sound.play(self.account, "ready")

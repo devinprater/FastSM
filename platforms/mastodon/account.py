@@ -5,6 +5,7 @@ from mastodon import Mastodon, MastodonError
 
 from platforms.base import PlatformAccount
 from models import UniversalStatus, UniversalUser, UniversalNotification, UserCache
+from cache import TimelineCache
 from .models import (
     mastodon_status_to_universal,
     mastodon_user_to_universal,
@@ -38,6 +39,12 @@ class MastodonAccount(PlatformAccount):
 
         # Initialize user cache (in-memory only, no disk persistence)
         self.user_cache = UserCache(confpath, 'mastodon', str(self._me.id))
+
+        # Initialize timeline cache for fast startup
+        if app.prefs.timeline_cache_enabled:
+            self.timeline_cache = TimelineCache(confpath, str(self._me.id))
+        else:
+            self.timeline_cache = None
 
         # Get default visibility
         try:
@@ -1080,3 +1087,11 @@ class MastodonAccount(PlatformAccount):
             }
         except MastodonError:
             return None
+
+    # ============ Cleanup Methods ============
+
+    def close(self):
+        """Clean up resources when account is removed."""
+        if self.timeline_cache:
+            self.timeline_cache.close()
+            self.timeline_cache = None

@@ -328,6 +328,31 @@ When audio is playing, open the Audio Player (Audio menu or Ctrl+Win+Shift+A in 
 - **T**: Speak total time
 - **Escape**: Close player
 
+## Composing Posts
+
+When composing a new post or reply, FastSM provides several helpful features:
+
+### User Autocomplete
+
+When mentioning users, you can use the autocomplete feature to find users by their handle or display name:
+
+1. Type an @ followed by part of the username (e.g., `@fast`)
+2. Press the **User Autocomplete** button:
+   - Windows: **Alt+A**
+   - macOS: **Option+U**
+3. Select from matching users in the popup list
+
+The autocomplete searches both your local user cache and the server for matches.
+
+### Other Compose Features
+
+- **Attachments**: Add up to 4 images or 1 video to your post
+- **Polls**: Create polls with multiple options (Mastodon and Bluesky)
+- **Content Warnings**: Add a content warning/spoiler text
+- **Visibility**: Choose who can see your post (public, unlisted, followers only, direct)
+- **Spell Check**: Check spelling before posting
+- **Schedule**: Schedule posts for later (Mastodon only)
+
 ## Soundpacks
 
 FastSM supports custom soundpacks. Place soundpack folders in:
@@ -337,7 +362,7 @@ FastSM supports custom soundpacks. Place soundpack folders in:
   - macOS: `~/Library/Application Support/FastSM/sounds/`
   - Linux: `~/.config/FastSM/sounds/`
 
-The official soundpacks repository: [FastSM Soundpacks](https://github.com/FastSMApp/FastSM-soundpacks)
+Download soundpacks from: [FastSM Soundpacks](https://spc.jonathanr.me/fastsm/)
 
 ## Troubleshooting
 

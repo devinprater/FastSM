@@ -65,33 +65,16 @@ def get_output_devices():
 	"""
 	devices = []
 	try:
-		from sound_lib.main import bass_module
-		from ctypes import pointer, c_char_p, Structure, c_ulong, byref, POINTER
-
-		class BASS_DEVICEINFO(Structure):
-			_fields_ = [
-				('name', c_char_p),
-				('driver', c_char_p),
-				('flags', c_ulong),
-			]
-
-		# Set up function signature for BASS_GetDeviceInfo
-		BASS_GetDeviceInfo = bass_module.BASS_GetDeviceInfo
-		BASS_GetDeviceInfo.restype = c_ulong  # BOOL
-		BASS_GetDeviceInfo.argtypes = [c_ulong, POINTER(BASS_DEVICEINFO)]
-
-		# BASS device flags
-		BASS_DEVICE_ENABLED = 1
-		BASS_DEVICE_DEFAULT = 2
+		from ctypes import byref
 
 		# Enumerate devices - device 0 is "no sound", real devices start at 1
 		i = 1
 		while True:
-			info = BASS_DEVICEINFO()
-			if not BASS_GetDeviceInfo(i, byref(info)):
+			info = o.BASS_DEVICEINFO()
+			if not o.BASS_GetDeviceInfo(i, byref(info)):
 				break
 			# Only include enabled devices with valid names
-			if info.name and (info.flags & BASS_DEVICE_ENABLED):
+			if info.name and (info.flags & o.BASS_DEVICE_ENABLED):
 				try:
 					name = info.name.decode('utf-8', errors='replace')
 					if name.strip():  # Only add non-empty names
@@ -157,18 +140,42 @@ def _extract_stream_url(url):
 		return url
 
 	try:
-		# Call yt-dlp to get stream URL
+		from application import get_app
+		speak.speak("Extracting audio...")
+
+		# Build command with optional cookies and environment
+		cmd = [YTDLP_PATH, '-f', 'bestaudio/best', '-g', '--no-playlist']
+
+		# Add cookies file if configured
+		cookies_path = getattr(get_app().prefs, 'ytdlp_cookies', '')
+		if cookies_path and os.path.isfile(cookies_path):
+			cmd.extend(['--cookies', cookies_path])
+
+		cmd.append(url)
+
+		# Set up environment with Deno path if configured
+		env = os.environ.copy()
+		deno_path = getattr(get_app().prefs, 'deno_path', '')
+		if deno_path and os.path.isfile(deno_path):
+			# Add Deno's directory to PATH
+			deno_dir = os.path.dirname(deno_path)
+			env['PATH'] = deno_dir + os.pathsep + env.get('PATH', '')
+
 		result = subprocess.run(
-			[YTDLP_PATH, '-f', 'bestaudio/best', '-g', '--no-warnings', '-q', url],
+			cmd,
 			capture_output=True,
 			text=True,
-			timeout=30,
+			timeout=60,
+			env=env,
 			creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
 		)
 		if result.returncode == 0 and result.stdout.strip():
 			return result.stdout.strip().split('\n')[0]  # First URL if multiple
+		# yt-dlp failed - show error
+		if result.stderr.strip():
+			speak.speak(f"yt-dlp error: {result.stderr.strip()[:100]}")
 	except subprocess.TimeoutExpired:
-		speak.speak("Timed out extracting stream URL")
+		speak.speak("Timed out extracting stream URL (yt-dlp took too long)")
 	except Exception as e:
 		speak.speak(f"Could not extract stream URL: {e}")
 	return url

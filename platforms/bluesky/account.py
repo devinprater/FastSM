@@ -6,6 +6,7 @@ from atproto.exceptions import AtProtocolError, InvokeTimeoutError
 
 from platforms.base import PlatformAccount
 from models import UniversalStatus, UniversalUser, UniversalNotification, UserCache
+from cache import TimelineCache
 from .models import (
     bluesky_post_to_universal,
     bluesky_profile_to_universal,
@@ -39,6 +40,12 @@ class BlueskyAccount(PlatformAccount):
         # Initialize user cache
         self.user_cache = UserCache(confpath, 'bluesky', str(self._me.id))
         self.user_cache.load()
+
+        # Initialize timeline cache for fast startup
+        if app.prefs.timeline_cache_enabled:
+            self.timeline_cache = TimelineCache(confpath, str(self._me.id))
+        else:
+            self.timeline_cache = None
 
         # Cursor tracking for pagination (Bluesky uses cursors, not max_id)
         self._cursors = {}  # timeline_type -> cursor
@@ -1024,3 +1031,11 @@ class BlueskyAccount(PlatformAccount):
     def get_popular_feeds(self, limit: int = 50, query: str = None) -> List[dict]:
         """Get popular feeds (wrapper for search_feeds)."""
         return self.search_feeds(query or '', limit=limit)
+
+    # ============ Cleanup Methods ============
+
+    def close(self):
+        """Clean up resources when account is removed."""
+        if self.timeline_cache:
+            self.timeline_cache.close()
+            self.timeline_cache = None
