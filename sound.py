@@ -256,10 +256,31 @@ def _extract_stream_url(url):
 		# Set up environment with Deno path if configured
 		env = os.environ.copy()
 		deno_path = getattr(get_app().prefs, 'deno_path', '')
-		if deno_path and os.path.isfile(deno_path):
-			# Add Deno's directory to PATH
-			deno_dir = os.path.dirname(deno_path)
-			env['PATH'] = deno_dir + os.pathsep + env.get('PATH', '')
+		if deno_path:
+			# Support both file path to deno executable and directory containing it
+			if os.path.isfile(deno_path):
+				deno_dir = os.path.dirname(deno_path)
+				deno_exe = deno_path
+			elif os.path.isdir(deno_path):
+				deno_dir = deno_path
+				# Check for deno executable in the directory
+				if sys.platform == 'win32':
+					deno_exe = os.path.join(deno_path, 'deno.exe')
+				else:
+					deno_exe = os.path.join(deno_path, 'deno')
+			else:
+				deno_dir = None
+				deno_exe = None
+
+			if deno_dir and os.path.exists(deno_dir):
+				# Add Deno's directory to PATH (at the front so it's found first)
+				env['PATH'] = deno_dir + os.pathsep + env.get('PATH', '')
+				# Set DENO_DIR to help yt-dlp find Deno cache
+				if 'DENO_DIR' not in env:
+					env['DENO_DIR'] = os.path.join(deno_dir, '.deno')
+				# Some extractors look for DENO_INSTALL_ROOT
+				if 'DENO_INSTALL_ROOT' not in env:
+					env['DENO_INSTALL_ROOT'] = deno_dir
 
 		result = subprocess.run(
 			cmd,

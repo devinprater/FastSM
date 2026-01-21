@@ -990,16 +990,34 @@ class timeline(object):
 			return (0, found_existing)
 
 		# Insert the new items at the correct position
-		# New items are in newest-to-oldest order from the API
-		insert_pos = self.index + 1 if not self.app.prefs.reversed else self.index
+		# API returns items newest-to-oldest (item 0 is newest of the older posts)
+		#
+		# Normal mode (newest at top, oldest at bottom):
+		#   - Older posts go at higher indices (after current position)
+		#   - Insert at index+1, index+2, etc.
+		#
+		# Reversed mode (oldest at top, newest at bottom):
+		#   - Older posts go at lower indices (before current position)
+		#   - Insert repeatedly at current index, which pushes items down
+		#   - This naturally reverses the order: [A, B, C] inserted at pos 5
+		#     becomes [..., C, B, A, current, ...] with C at 5, B at 6, A at 7
 
-		# For normal order: insert after current position (these are older posts)
-		# For reversed order: insert before current position (these are older posts)
-		for i, item in enumerate(new_items):
-			shown = self._add_status_at_position(item, insert_pos + i if not self.app.prefs.reversed else insert_pos)
-			if self.app.prefs.reversed and shown:
-				# In reversed mode, inserting before shifts our index
-				self.index += 1
+		if not self.app.prefs.reversed:
+			# Normal mode: insert after current position
+			insert_pos = self.index + 1
+			for i, item in enumerate(new_items):
+				self._add_status_at_position(item, insert_pos + i)
+		else:
+			# Reversed mode: insert at current position repeatedly
+			# Each insert pushes current and subsequent items down
+			insert_pos = self.index
+			items_inserted = 0
+			for item in new_items:
+				shown = self._add_status_at_position(item, insert_pos)
+				if shown:
+					# Current post moved down, update our index
+					self.index += 1
+					items_inserted += 1
 
 		# Refresh the UI
 		if self.app.currentAccount == self.account and self.account.currentTimeline == self:
@@ -1101,8 +1119,11 @@ class timeline(object):
 				single_on_startup = getattr(self.app.prefs, 'single_api_on_startup', False)
 
 				if not back:
-					if fetch_pages > 1 and self.initial and not single_on_startup:
-						# Multi-page fetch for initial load (unless single_api_on_startup is enabled)
+					if self.initial and single_on_startup:
+						# Single API call on initial load when single_api_on_startup is enabled
+						tl = self.func(**self.update_kwargs)
+					elif fetch_pages > 1:
+						# Multi-page fetch for initial load or refresh
 						tl = self._fetch_multiple_pages(self.update_kwargs, fetch_pages)
 					else:
 						tl = self.func(**self.update_kwargs)
