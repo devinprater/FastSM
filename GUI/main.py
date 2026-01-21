@@ -1056,6 +1056,26 @@ class MainGui(wx.Frame):
 
 				m_block = menu.Append(-1, "Unblock user" if is_blocking else "Block user")
 				self.Bind(wx.EVT_MENU, self.OnBlockToggle, m_block)
+
+			elif notif_type == 'poll':
+				# Poll ended notification - always show View poll results first
+				m_poll = menu.Append(-1, "View poll results")
+				self.Bind(wx.EVT_MENU, self.OnViewPollResults, m_poll)
+
+				notif_status = getattr(item, 'status', None)
+				if notif_status:
+					menu.AppendSeparator()
+
+					m_view = menu.Append(-1, "View post")
+					self.Bind(wx.EVT_MENU, self.OnView, m_view)
+
+					# User options for the poll author
+					m_user_profile = menu.Append(-1, "User profile")
+					self.Bind(wx.EVT_MENU, self.OnUserProfile, m_user_profile)
+
+					m_user_tl = menu.Append(-1, "User timeline")
+					self.Bind(wx.EVT_MENU, self.OnUserTimeline, m_user_tl)
+
 			else:
 				# Notifications with posts (favourite, reblog, mention, etc.)
 				notif_status = getattr(item, 'status', None)
@@ -2020,6 +2040,22 @@ class MainGui(wx.Frame):
 		if hasattr(status_to_check, 'poll') and status_to_check.poll:
 			from . import poll_dialog
 			poll_dialog.show_poll_dialog(get_app().currentAccount, status_to_check)
+
+	def OnViewPollResults(self, event=None):
+		"""View poll results from a poll ended notification."""
+		# Get the notification item directly (not through get_current_status which unwraps)
+		tl = get_app().currentAccount.currentTimeline
+		if tl.type != "notifications" or not tl.statuses:
+			return
+		item = tl.statuses[tl.index]
+		# Get the status from the notification
+		status = getattr(item, 'status', None)
+		if not status:
+			speak.speak("No poll data available")
+			return
+		# Show poll dialog - it will fetch fresh results from the server
+		from . import poll_dialog
+		poll_dialog.show_poll_dialog(get_app().currentAccount, status)
 
 	def OnFollowHashtag(self, event=None):
 		"""Show dialog to follow a hashtag from the current post."""
