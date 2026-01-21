@@ -1885,9 +1885,14 @@ class MainGui(wx.Frame):
 						blocking = getattr(relationships[0], 'blocking', False)
 				except:
 					pass
-			elif hasattr(user, 'viewer') and user.viewer:
-				# Bluesky viewer info
-				blocking = getattr(user.viewer, 'blocking', False) or getattr(user.viewer, 'blocked_by', False)
+			elif platform_type == 'bluesky' and hasattr(account, '_platform') and account._platform:
+				# Bluesky - fetch fresh profile to get current relationship state
+				try:
+					profile = account._platform.client.get_profile(user.id)
+					if profile and hasattr(profile, 'viewer') and profile.viewer:
+						blocking = bool(getattr(profile.viewer, 'blocking', None))
+				except:
+					pass
 
 			if blocking:
 				# Check if confirmation is required
@@ -2006,9 +2011,14 @@ class MainGui(wx.Frame):
 						following = getattr(relationships[0], 'following', False)
 				except:
 					pass
-			elif hasattr(user, 'viewer') and user.viewer:
-				# Bluesky viewer info
-				following = getattr(user.viewer, 'following', False)
+			elif platform_type == 'bluesky' and hasattr(account, '_platform') and account._platform:
+				# Bluesky - fetch fresh profile to get current relationship state
+				try:
+					profile = account._platform.client.get_profile(user.id)
+					if profile and hasattr(profile, 'viewer') and profile.viewer:
+						following = bool(getattr(profile.viewer, 'following', None))
+				except:
+					pass
 
 			if following:
 				# Check if confirmation is required
@@ -2101,9 +2111,14 @@ class MainGui(wx.Frame):
 						muting = getattr(relationships[0], 'muting', False)
 				except:
 					pass
-			elif hasattr(user, 'viewer') and user.viewer:
-				# Bluesky viewer info
-				muting = getattr(user.viewer, 'muted', False)
+			elif platform_type == 'bluesky' and hasattr(account, '_platform') and account._platform:
+				# Bluesky - fetch fresh profile to get current relationship state
+				try:
+					profile = account._platform.client.get_profile(user.id)
+					if profile and hasattr(profile, 'viewer') and profile.viewer:
+						muting = bool(getattr(profile.viewer, 'muted', False))
+				except:
+					pass
 
 			if muting:
 				# Check if confirmation is required
