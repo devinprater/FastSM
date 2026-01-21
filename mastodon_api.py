@@ -45,7 +45,9 @@ class mastodon(object):
 		# Initialize streaming-related attributes early
 		self._pending_initial_loads = 0
 		self._initial_loads_lock = threading.Lock()
+		self._stream_lock = threading.Lock()  # Prevents multiple stream connections
 		self.stream_listener = None
+		self.stream_thread = None
 		self.stream = None
 		# In portable mode, don't add FastSM prefix (userdata is already app-specific)
 		if config.is_portable_mode():
@@ -525,7 +527,12 @@ class mastodon(object):
 		if self.prefs.platform_type == "bluesky":
 			return
 
-		if self.stream_listener is None:
+		# Use lock to prevent race condition where multiple threads try to start stream
+		with self._stream_lock:
+			# Check if stream is already running
+			if self.stream_thread is not None and self.stream_thread.is_alive():
+				return  # Stream already running
+
 			self.stream_listener = streaming.MastodonStreamListener(self)
 			self.stream_thread = threading.Thread(
 				target=self._run_stream,
