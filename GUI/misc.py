@@ -259,7 +259,9 @@ def get_interaction_id(account, status):
 def boost(account, status):
 	print(f"boost() called with status.id={status.id}")
 	try:
-		status_id = get_interaction_id(account, status)
+		# Get the actual status (unwrap boosts) - need to interact with the original post
+		actual_status = status.reblog if hasattr(status, 'reblog') and status.reblog else status
+		status_id = get_interaction_id(account, actual_status)
 		print(f"boost() got status_id={status_id}")
 		account.boost(status_id)
 		account.app.prefs.boosts_sent += 1
@@ -270,15 +272,17 @@ def boost(account, status):
 
 def favourite(account, status):
 	try:
-		status_id = get_interaction_id(account, status)
-		if getattr(status, 'favourited', False):
+		# Get the actual status (unwrap boosts) - need to interact with the original post
+		actual_status = status.reblog if hasattr(status, 'reblog') and status.reblog else status
+		status_id = get_interaction_id(account, actual_status)
+		if getattr(actual_status, 'favourited', False):
 			account.unfavourite(status_id)
-			status.favourited = False
+			actual_status.favourited = False
 			sound.play(account, "unlike")
 		else:
 			account.favourite(status_id)
 			account.app.prefs.favourites_sent += 1
-			status.favourited = True
+			actual_status.favourited = True
 			sound.play(account, "like")
 	except Exception as error:
 		account.app.handle_error(error, "favourite post")

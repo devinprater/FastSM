@@ -1660,9 +1660,9 @@ class MainGui(wx.Frame):
 		if status:
 			account = get_app().currentAccount
 			try:
-				status_id = misc.get_interaction_id(account, status)
-				# Get the actual status for state checking
+				# Get the actual status (unwrap boosts) - need to interact with the original post
 				status_to_check = status.reblog if hasattr(status, 'reblog') and status.reblog else status
+				status_id = misc.get_interaction_id(account, status_to_check)
 				if getattr(status_to_check, 'favourited', False):
 					# Check if confirmation is required
 					if get_app().prefs.confirm_unfavorite:
@@ -1697,9 +1697,9 @@ class MainGui(wx.Frame):
 		if status:
 			account = get_app().currentAccount
 			try:
-				status_id = misc.get_interaction_id(account, status)
-				# Get the actual status for state checking
+				# Get the actual status (unwrap boosts) - need to interact with the original post
 				status_to_check = status.reblog if hasattr(status, 'reblog') and status.reblog else status
+				status_id = misc.get_interaction_id(account, status_to_check)
 				if getattr(status_to_check, 'reblogged', False):
 					# Check if confirmation is required
 					if get_app().prefs.confirm_unboost:
@@ -1795,8 +1795,9 @@ class MainGui(wx.Frame):
 				speak.speak("Bookmarks are not supported on Bluesky")
 				return
 			try:
-				status_id = misc.get_interaction_id(account, status)
+				# Get the actual status (unwrap boosts) - need to interact with the original post
 				status_to_check = status.reblog if hasattr(status, 'reblog') and status.reblog else status
+				status_id = misc.get_interaction_id(account, status_to_check)
 				if getattr(status_to_check, 'bookmarked', False):
 					account.api.status_unbookmark(status_id)
 					status_to_check.bookmarked = False
