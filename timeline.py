@@ -341,12 +341,12 @@ class timeline(object):
 	def _should_detect_gaps(self):
 		"""Check if gap detection should apply to this timeline type.
 
-		Gap detection only makes sense for chronological, continuous timelines
-		where missing posts matter (like home, notifications, mentions).
+		Gap detection is currently disabled due to false positives
+		(e.g., network outages causing huge idle times that trigger
+		false gap detection on any full page refresh).
 		"""
-		# Timeline types where gaps matter
-		gap_timeline_types = {'home', 'notifications', 'mentions', 'local', 'federated'}
-		return self.type in gap_timeline_types
+		# Disabled for now - the heuristic-based approach causes too many false positives
+		return False
 
 	# ============ Cache Methods ============
 
@@ -449,17 +449,12 @@ class timeline(object):
 			if metadata.get('since_id') and items:
 				self.update_kwargs['since_id'] = metadata['since_id']
 
-			# Restore any saved gaps from cache (only for gap-enabled timelines)
-			if self._should_detect_gaps() and metadata.get('gaps'):
-				self._gaps = metadata['gaps']
-				if self._gaps:
-					print(f"[GAP DEBUG] {self.name}: RESTORED {len(self._gaps)} gap(s) from cache: {self._gaps}")
-					speak.speak(f"{len(self._gaps)} gap{'s' if len(self._gaps) > 1 else ''} to fill")
+			# Clear any stale gaps from cache (gap detection is currently disabled)
+			self._gaps = []
 
-			# Set last load time to now (cache load counts as a load for gap detection purposes)
+			# Set last load time to now
 			import time
 			self._last_load_time = time.time()
-			print(f"[GAP DEBUG] {self.name}: _last_load_time set from CACHE LOAD to {self._last_load_time}")
 
 			# Store position ID for restore after API refresh
 			# ID-based restore is more robust than index when new items arrive
@@ -1024,35 +1019,9 @@ class timeline(object):
 					else:
 						self.update_kwargs['since_id'] = tl[len(tl)-1].id
 
-					# Gap detection: check for gaps when we might have missed items
-					# This triggers when: timeline was idle for a while AND we get a full page
-					# Common scenarios: computer sleep/hibernate, app minimized for a long time
-					if self._should_detect_gaps() and not back and not self.initial:
-						import time
-						current_time = time.time()
-						time_since_last_load = current_time - self._last_load_time if self._last_load_time else 0
-
-						print(f"[GAP DEBUG] {self.name}: time_since_last={time_since_last_load:.1f}s, threshold={self._gap_idle_threshold}s, len(tl)={len(tl)}, last_load_time={self._last_load_time}")
-
-						# Only check for gaps if enough time has passed (indicates potential idle period)
-						if time_since_last_load >= self._gap_idle_threshold:
-							fetch_limit = self.update_kwargs.get('limit', 40)
-							print(f"[GAP DEBUG] {self.name}: IDLE THRESHOLD MET, checking full page (len={len(tl)}, limit={fetch_limit})")
-							if len(tl) >= fetch_limit:
-								# Got a full page after being idle - likely a gap
-								if not self.app.prefs.reversed:
-									oldest_new_id = str(tl[-1].id)
-								else:
-									oldest_new_id = str(tl[0].id)
-								# Add gap at the oldest new item
-								print(f"[GAP DEBUG] {self.name}: ADDING GAP at {oldest_new_id}")
-								self._gaps.insert(0, {'max_id': oldest_new_id})
-								speak.speak(f"Gap detected in {self.name}, {len(self._gaps)} gap{'s' if len(self._gaps) > 1 else ''} to fill")
-
 					# Update last load time
 					import time
 					self._last_load_time = time.time()
-					print(f"[GAP DEBUG] {self.name}: _last_load_time set from API LOAD to {self._last_load_time}")
 
 				if not back and not self.initial:
 					if not self.app.prefs.reversed:
@@ -1094,10 +1063,9 @@ class timeline(object):
 			if self.initial:
 				self.initial = False
 
-				# Set last load time for gap detection
+				# Set last load time
 				import time
 				self._last_load_time = time.time()
-				print(f"[GAP DEBUG] {self.name}: _last_load_time set from INITIAL LOAD to {self._last_load_time}")
 
 				# Sync position from server after initial load (if enabled)
 				# Only sync if user hasn't already moved (position_moved is False on initial load)
