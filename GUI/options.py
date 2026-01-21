@@ -138,10 +138,20 @@ class timelines_tab(wx.Panel, wx.Dialog):
 
 	def on_clear_cache(self, event):
 		"""Clear all timeline caches, reset timelines, and refresh."""
+		import os
 		import speak
 		import threading
+
+		# Check if caching is being disabled
+		caching_disabled = not self.timeline_cache_enabled.GetValue()
+
+		if caching_disabled:
+			message = "This will delete all timeline cache database files and reload all timelines from the server. Continue?"
+		else:
+			message = "This will clear all cached timeline data and reload all timelines from the server. Continue?"
+
 		result = wx.MessageBox(
-			"This will clear all cached timeline data and reload all timelines from the server. Continue?",
+			message,
 			"Clear Timeline Caches",
 			wx.YES_NO | wx.ICON_QUESTION
 		)
@@ -150,9 +160,27 @@ class timelines_tab(wx.Panel, wx.Dialog):
 			for account in get_app().accounts:
 				if hasattr(account, '_platform') and account._platform:
 					cache = getattr(account._platform, 'timeline_cache', None)
-					if cache and cache.is_available():
-						cache.clear_all()
-						cleared += 1
+					if cache:
+						if caching_disabled:
+							# Close connection and delete the database file
+							db_path = getattr(cache, 'db_path', None)
+							cache.close()
+							if db_path and os.path.exists(db_path):
+								try:
+									os.remove(db_path)
+									# Also remove WAL and SHM files if they exist
+									for ext in ['-wal', '-shm']:
+										wal_path = db_path + ext
+										if os.path.exists(wal_path):
+											os.remove(wal_path)
+									cleared += 1
+								except Exception as e:
+									print(f"Error deleting cache file: {e}")
+							# Clear the cache reference
+							account._platform.timeline_cache = None
+						elif cache.is_available():
+							cache.clear_all()
+							cleared += 1
 
 				# Reset all timelines and trigger refresh
 				for tl in account.timelines:
@@ -169,7 +197,10 @@ class timelines_tab(wx.Panel, wx.Dialog):
 					# Trigger a fresh load in background
 					threading.Thread(target=tl.load, daemon=True).start()
 
-			speak.speak(f"Cleared caches for {cleared} account{'s' if cleared != 1 else ''}, refreshing timelines")
+			if caching_disabled:
+				speak.speak(f"Deleted cache files for {cleared} account{'s' if cleared != 1 else ''}, refreshing timelines")
+			else:
+				speak.speak(f"Cleared caches for {cleared} account{'s' if cleared != 1 else ''}, refreshing timelines")
 			# Update the button label to reflect new size
 			self.clear_cache_btn.SetLabel(self._get_cache_button_label())
 			# Refresh the UI
