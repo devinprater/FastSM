@@ -457,9 +457,6 @@ def user_timeline_user(account, username, focus=True, filter=None):
 		filter: Optional filter for Bluesky - 'posts_with_replies' (default),
 		        'posts_no_replies', 'posts_with_media', 'posts_and_author_threads'
 	"""
-	if len(account.prefs.user_timelines) >= 8:
-		account.app.alert("You cannot have this many user timelines open! Please consider using a list instead.", "Error")
-		return False
 	user = account.app.lookup_user_name(account, username)
 	if user != -1:
 		# Build timeline name based on filter
