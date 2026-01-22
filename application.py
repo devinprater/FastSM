@@ -91,10 +91,14 @@ class Application:
 
 		if platform.system() == "Darwin":
 			try:
+				# Ensure config directory exists before writing errors.log
+				if not os.path.exists(self.confpath):
+					os.makedirs(self.confpath)
 				f = open(self.confpath + "/errors.log", "a")
 				sys.stderr = f
-			except:
-				pass
+			except Exception as e:
+				# Log to console if we can't set up error logging
+				print(f"Warning: Could not set up error logging: {e}", file=sys.__stderr__)
 
 		# Load preferences with defaults
 		self.prefs.timelinecache_version = self.prefs.get("timelinecache_version", 1)
@@ -195,7 +199,11 @@ class Application:
 
 		# Initialize audio output with selected device
 		import sound
-		sound.init_audio_output(self.prefs.audio_output_device)
+		try:
+			sound.init_audio_output(self.prefs.audio_output_device)
+		except Exception as e:
+			# Audio init failure shouldn't crash the app
+			print(f"Warning: Audio initialization failed: {e}", file=sys.stderr)
 
 		if self.prefs.invisible:
 			main.window.register_keys()

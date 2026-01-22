@@ -37,6 +37,7 @@ if not getattr(sys, 'frozen', False):
 			import requests
 
 import threading
+import platform
 
 def _has_bluesky_accounts():
 	"""Check if any Bluesky accounts are configured (without loading full config module)."""
@@ -67,17 +68,13 @@ def _has_bluesky_accounts():
 	return False
 
 # Only pre-import atproto if there are Bluesky accounts (takes ~35s)
-if _has_bluesky_accounts():
-	def _preimport_atproto():
-		try:
-			import atproto
-		except:
-			pass
-	threading.Thread(target=_preimport_atproto, daemon=True).start()
+# Skip on macOS - can cause startup crashes due to thread/GUI conflicts
+_should_preimport_atproto = False
+if platform.system() != "Darwin" and _has_bluesky_accounts():
+	_should_preimport_atproto = True
 
 import application
 from application import get_app
-import platform
 import os
 # On Windows, redirect stderr to errors.log in the app's directory (not cwd)
 if platform.system()!="Darwin":
@@ -96,6 +93,15 @@ if os.path.exists(os.path.expandvars(r"%temp%\gen_py")):
 import wx
 wx_app = wx.App(redirect=False)
 
+# Start atproto pre-import AFTER wx.App() is created to avoid thread/GUI conflicts
+if _should_preimport_atproto:
+	def _preimport_atproto():
+		try:
+			import atproto
+		except:
+			pass
+	threading.Thread(target=_preimport_atproto, daemon=True).start()
+
 # Prevent multiple instances of the app (not needed on Mac - macOS handles this)
 if platform.system() != "Darwin":
 	instance_checker = wx.SingleInstanceChecker("FastSM-" + wx.GetUserId())
@@ -103,14 +109,24 @@ if platform.system() != "Darwin":
 		wx.MessageBox("Another instance of FastSM is already running.", "FastSM", wx.OK | wx.ICON_WARNING)
 		sys.exit(1)
 
-import speak
-from GUI import main, theme
-fastsm_app = get_app()
-fastsm_app.load()
-# Apply theme after prefs are loaded
-theme.apply_theme(main.window)
-if fastsm_app.prefs.window_shown:
-	main.window.Show()
-else:
-	speak.speak("Welcome to FastSM! Main window hidden.")
-wx_app.MainLoop()
+try:
+	import speak
+	from GUI import main, theme
+	fastsm_app = get_app()
+	fastsm_app.load()
+	# Apply theme after prefs are loaded
+	theme.apply_theme(main.window)
+	if fastsm_app.prefs.window_shown:
+		main.window.Show()
+	else:
+		speak.speak("Welcome to FastSM! Main window hidden.")
+	wx_app.MainLoop()
+except Exception as e:
+	import traceback
+	error_msg = f"FastSM failed to start:\n\n{type(e).__name__}: {e}\n\n{traceback.format_exc()}"
+	print(error_msg, file=sys.stderr)
+	try:
+		wx.MessageBox(error_msg, "FastSM Startup Error", wx.OK | wx.ICON_ERROR)
+	except:
+		pass
+	sys.exit(1)
