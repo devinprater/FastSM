@@ -368,9 +368,15 @@ def bluesky_post_to_universal(post, author=None, platform_data=None) -> Optional
     rkey = extract_rkey_from_uri(uri)
 
     # Get text content from record
+    # For ViewRecord (used in quotes), text is in post.value.text
     text = ''
     if record:
         text = get_attr(record, 'text', '')
+    if not text:
+        # Check for ViewRecord structure (embed.record)
+        value = get_attr(post, 'value', None)
+        if value:
+            text = get_attr(value, 'text', '')
     if not text:
         text = get_attr(post, 'text', '')
 
@@ -390,9 +396,15 @@ def bluesky_post_to_universal(post, author=None, platform_data=None) -> Optional
         reply_count = get_attr(post, 'replyCount', 0)
 
     # Get created_at from record
+    # For ViewRecord (used in quotes), createdAt might be in post.value
     created_at_str = ''
     if record:
         created_at_str = get_attr(record, 'created_at', '') or get_attr(record, 'createdAt', '')
+    if not created_at_str:
+        # Check ViewRecord value
+        value = get_attr(post, 'value', None)
+        if value:
+            created_at_str = get_attr(value, 'created_at', '') or get_attr(value, 'createdAt', '')
     if not created_at_str:
         created_at_str = get_attr(post, 'indexed_at', '') or get_attr(post, 'indexedAt', '')
     created_at = parse_bluesky_datetime(created_at_str)

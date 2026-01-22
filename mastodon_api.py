@@ -563,18 +563,24 @@ class mastodon(object):
 				# If stream exits normally, reset error count
 				consecutive_errors = 0
 			except Exception as e:
-				error_str = str(e)
+				error_str = str(e).lower()
 				# Don't count transient errors toward consecutive errors
 				# These can happen during reconnection or network issues
-				if "Missing field" in error_str or "MalformedEventError" in error_str or "handle_stream" in error_str:
+				transient_errors = [
+					"missing field", "malformedeventerror", "handle_stream",
+					"connection", "timeout", "reset", "refused", "unreachable",
+					"network", "socket", "eof", "broken pipe", "ssl", "certificate"
+				]
+				if any(err in error_str for err in transient_errors):
 					# Brief pause then retry without counting as real error
 					time.sleep(2)
 					continue
 
 				consecutive_errors += 1
-				# Only announce errors after a few consecutive failures
-				if consecutive_errors >= 3:
-					speak.speak("Stream error: " + error_str)
+				# Only announce errors after several consecutive failures to avoid spam
+				if consecutive_errors >= 5:
+					speak.speak("Stream connection lost")
+					consecutive_errors = 0  # Reset to avoid repeated announcements
 
 				# Exponential backoff with cap
 				delay = min(base_delay * (2 ** (consecutive_errors - 1)), max_delay)

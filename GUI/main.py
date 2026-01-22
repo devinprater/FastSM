@@ -691,6 +691,9 @@ class MainGui(wx.Frame):
 				except:
 					pass
 		self.Destroy()
+		# On Mac, we need to explicitly exit the main loop
+		if platform.system() == "Darwin":
+			wx.GetApp().ExitMainLoop()
 		sys.exit()
 	
 	def OnPlayExternal(self,event=None):

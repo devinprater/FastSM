@@ -14,6 +14,15 @@ class MastodonStreamListener(StreamListener):
 		super(MastodonStreamListener, self).__init__()
 		self.account = account
 
+	def _is_network_error(self, e):
+		"""Check if an exception is a network-related error that should be silently ignored."""
+		error_str = str(e).lower()
+		network_errors = [
+			"connection", "timeout", "reset", "refused", "unreachable",
+			"network", "socket", "eof", "broken pipe", "ssl", "certificate"
+		]
+		return any(err in error_str for err in network_errors)
+
 	def on_update(self, status):
 		"""Called when a new status appears in the home timeline"""
 		try:
@@ -43,7 +52,8 @@ class MastodonStreamListener(StreamListener):
 				if tl.type == "user" and tl.user and str(status.account.id) == str(tl.user.id):
 					tl.load(items=[status])
 		except Exception as e:
-			self.account.app.handle_error(e, "Stream update")
+			if not self._is_network_error(e):
+				self.account.app.handle_error(e, "Stream update")
 
 	def on_notification(self, notification):
 		"""Called when a new notification arrives"""
@@ -77,7 +87,8 @@ class MastodonStreamListener(StreamListener):
 						tl.load(items=[status])
 						break
 		except Exception as e:
-			self.account.app.handle_error(e, "Stream notification")
+			if not self._is_network_error(e):
+				self.account.app.handle_error(e, "Stream notification")
 
 	def on_conversation(self, conversation):
 		"""Called when a direct message conversation is updated"""
@@ -87,7 +98,8 @@ class MastodonStreamListener(StreamListener):
 					tl.load(items=[conversation])
 					break
 		except Exception as e:
-			self.account.app.handle_error(e, "Stream conversation")
+			if not self._is_network_error(e):
+				self.account.app.handle_error(e, "Stream conversation")
 
 	def on_delete(self, status_id):
 		"""Called when a status is deleted"""
@@ -112,7 +124,8 @@ class MastodonStreamListener(StreamListener):
 			if needs_refresh:
 				wx.CallAfter(main.window.refreshList)
 		except Exception as e:
-			self.account.app.handle_error(e, "Stream delete")
+			if not self._is_network_error(e):
+				self.account.app.handle_error(e, "Stream delete")
 
 	def on_status_update(self, status):
 		"""Called when a status is edited"""
@@ -134,7 +147,8 @@ class MastodonStreamListener(StreamListener):
 			if needs_refresh:
 				wx.CallAfter(main.window.refreshList)
 		except Exception as e:
-			self.account.app.handle_error(e, "Stream status update")
+			if not self._is_network_error(e):
+				self.account.app.handle_error(e, "Stream status update")
 
 	def handle_heartbeat(self):
 		"""Called on heartbeat to keep connection alive"""

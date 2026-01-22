@@ -118,10 +118,22 @@ class ListsGui(wx.Dialog):
 		self.add_items()
 
 	def ViewMembers(self, event):
-		selected_list = self.lists[self.list.GetSelection()]
-		members = list(self.account.api.list_accounts(id=selected_list.id))
+		import speak
+		selection = self.list.GetSelection()
+		if selection < 0 or selection >= len(self.lists):
+			speak.speak("No list selected")
+			return
+		selected_list = self.lists[selection]
+		try:
+			members = list(self.account.api.list_accounts(id=selected_list.id))
+		except Exception as e:
+			speak.speak(f"Error getting list members: {e}")
+			return
+		if not members:
+			speak.speak("This list has no members")
+			return
 		v = view.UserViewGui(self.account, members, "List members")
-		v.Show()
+		v.ShowModal()
 
 	def Load(self, event):
 		import speak

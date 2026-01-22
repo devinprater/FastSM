@@ -96,6 +96,7 @@ class AccountsGui(wx.Dialog):
 
 		account_to_remove = app.accounts[selection]
 		account_name = account_to_remove.me.acct
+		account_index = selection  # The index in the accounts list matches the folder number
 
 		# Confirm removal
 		dlg = wx.MessageDialog(self,
@@ -117,6 +118,7 @@ class AccountsGui(wx.Dialog):
 
 		# Get the config path before removing
 		confpath = account_to_remove.confpath
+		total_accounts = app.prefs.accounts
 
 		# Remove from accounts list
 		app.accounts.remove(account_to_remove)
@@ -128,6 +130,18 @@ class AccountsGui(wx.Dialog):
 				shutil.rmtree(confpath)
 			except Exception as e:
 				speak.speak(f"Warning: Could not delete account data: {e}")
+
+		# Renumber remaining account folders to fill the gap
+		# e.g., if we removed account1 and had account0, account1, account2
+		# we need to rename account2 -> account1
+		for i in range(account_index + 1, total_accounts):
+			old_path = os.path.join(app.confpath, f"account{i}")
+			new_path = os.path.join(app.confpath, f"account{i - 1}")
+			if os.path.exists(old_path):
+				try:
+					shutil.move(old_path, new_path)
+				except Exception as e:
+					print(f"Warning: Could not rename account folder: {e}")
 
 		# If we removed the current account, switch to first account
 		if app.currentAccount == account_to_remove:

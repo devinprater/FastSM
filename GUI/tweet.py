@@ -342,11 +342,14 @@ class TweetGui(wx.Dialog):
 			file_path = dialog.GetPath()
 			dialog.Destroy()
 
-			# Ask for alt text
-			alt_dialog = wx.TextEntryDialog(self, "Enter alt text description (optional):", "Alt Text", "")
-			alt_text = ""
-			if alt_dialog.ShowModal() == wx.ID_OK:
-				alt_text = alt_dialog.GetValue()
+			# Ask for alt text - cancel here cancels the entire attachment
+			alt_dialog = wx.TextEntryDialog(self, "Enter alt text description (optional, press Cancel to cancel attachment):", "Alt Text", "")
+			result = alt_dialog.ShowModal()
+			if result == wx.ID_CANCEL:
+				alt_dialog.Destroy()
+				speak.speak("Attachment cancelled")
+				return
+			alt_text = alt_dialog.GetValue()
 			alt_dialog.Destroy()
 
 			# Add to list
