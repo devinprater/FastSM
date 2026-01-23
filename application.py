@@ -132,6 +132,7 @@ class Application:
 		self.prefs.demojify = self.prefs.get("demojify", False)
 		self.prefs.demojify_post = self.prefs.get("demojify_post", False)
 		self.prefs.include_media_descriptions = self.prefs.get("include_media_descriptions", True)
+		self.prefs.max_usernames_display = self.prefs.get("max_usernames_display", 0)  # 0 = show all
 		self.prefs.position = self.prefs.get("position", True)
 		self.prefs.chars_sent = self.prefs.get("chars_sent", 0)
 		self.prefs.posts_sent = self.prefs.get("posts_sent", 0)
@@ -620,6 +621,27 @@ class Application:
 					text = text[:-len(quote_url)].rstrip()
 			# Also strip any trailing Mastodon-style status URLs (https://instance/@user/id)
 			text = re.sub(r'\s*https?://[^\s]+/@[^\s]+/\d+\s*$', '', text).strip()
+
+		# Collapse consecutive usernames at start of text if max_usernames_display is set
+		# Setting controls threshold - when exceeded, show only first username + "and X more"
+		max_usernames = getattr(self.prefs, 'max_usernames_display', 0)
+		if max_usernames > 0:
+			import re
+			# Match consecutive @username patterns at the start (with optional whitespace between)
+			username_pattern = r'^((?:@[\w.-]+(?:@[\w.-]+)?(?:\s+|$))+)'
+			match = re.match(username_pattern, text)
+			if match:
+				# Extract all usernames from the matched portion
+				username_portion = match.group(1)
+				usernames = re.findall(r'@[\w.-]+(?:@[\w.-]+)?', username_portion)
+				if len(usernames) > max_usernames:
+					# Show only the first username and "X more"
+					first_username = usernames[0]
+					remaining_count = len(usernames) - 1
+					rest_of_text = text[len(username_portion):].lstrip()
+					text = f"{first_username} and {remaining_count} more"
+					if rest_of_text:
+						text += f" {rest_of_text}"
 
 		if return_only_text:
 			return text
