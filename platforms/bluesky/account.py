@@ -7,6 +7,7 @@ from atproto.exceptions import AtProtocolError, InvokeTimeoutError
 
 from platforms.base import PlatformAccount
 from models import UniversalStatus, UniversalUser, UniversalNotification, UserCache
+from models.status import UniversalMention
 from cache import TimelineCache
 from .models import (
     bluesky_post_to_universal,
@@ -31,12 +32,13 @@ class BlueskyAccount(PlatformAccount):
     supports_media_attachments = False  # TODO: Bluesky uses different upload API
     supports_scheduling = False  # No scheduling API
 
-    def __init__(self, app, index: int, client: Client, profile, confpath: str):
+    def __init__(self, app, index: int, client: Client, profile, confpath: str, prefs=None):
         super().__init__(app, index)
         self.client = client
         self._me = bluesky_profile_to_universal(profile)
         self.confpath = confpath
         self._max_chars = 300  # Bluesky character limit
+        self._prefs = prefs  # Store reference to account wrapper's prefs
 
         # Initialize user cache
         self.user_cache = UserCache(confpath, 'bluesky', str(self._me.id))
@@ -215,11 +217,20 @@ class BlueskyAccount(PlatformAccount):
                     except Exception:
                         pass  # Continue even if batch fetch fails
 
+            # Check if mentions should be included in notifications
+            include_mentions = False
+            if self._prefs:
+                include_mentions = getattr(self._prefs, 'mentions_in_notifications', False)
+
             notifications = []
 
             for i, notif in enumerate(raw_notifs):
                 universal_notif = bluesky_notification_to_universal(notif)
                 if universal_notif:
+                    # Filter out mentions if setting is disabled
+                    if not include_mentions and universal_notif.type == 'mention':
+                        continue
+
                     # For like/repost notifications, attach the fetched post
                     reason = getattr(notif, 'reason', '')
                     if reason in ('like', 'repost') and universal_notif.status is None:
@@ -535,6 +546,16 @@ class BlueskyAccount(PlatformAccount):
                 # If get_status failed but we got a response, create a minimal status
                 # This can happen due to indexing delay on Bluesky
                 # We need at least an 'id' for timeline deduplication
+                # Parse mentions from the text for reply functionality
+                mentions = []
+                import re
+                for match in re.finditer(r'@([\w.-]+(?:\.[\w.-]+)*)', text):
+                    handle = match.group(1)
+                    mentions.append(UniversalMention(
+                        id=handle,  # We don't have the DID, use handle
+                        acct=handle,
+                        username=handle.split('.')[0] if '.' in handle else handle,
+                    ))
                 minimal_status = UniversalStatus(
                     id=response.uri,
                     content=text,
@@ -548,6 +569,7 @@ class BlueskyAccount(PlatformAccount):
                     ),
                     visibility='public',
                     url=response.uri,
+                    mentions=mentions,
                     _platform='bluesky',
                 )
                 return minimal_status

@@ -382,7 +382,7 @@ class mastodon(object):
 		self.default_visibility = 'public'  # Bluesky only has public posts
 
 		# Initialize platform backend (pass raw profile, it converts internally)
-		self._platform = BlueskyAccount(self.app, index, self.api, raw_profile, self.confpath)
+		self._platform = BlueskyAccount(self.app, index, self.api, raw_profile, self.confpath, self.prefs)
 
 		self._finish_init(index)
 

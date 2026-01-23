@@ -2249,8 +2249,25 @@ class MainGui(wx.Frame):
 		else:
 			status_to_check = status
 		if hasattr(status_to_check, 'poll') and status_to_check.poll:
+			# Refresh status from API to ensure poll data is up to date
+			# (cached polls may have missing options or stale vote counts)
+			account = get_app().currentAccount
+			try:
+				if hasattr(account, '_platform') and account._platform:
+					fresh_status = account._platform.get_status(status_to_check.id)
+				else:
+					fresh_status = account.api.status(status_to_check.id)
+					# Convert to universal if needed
+					if hasattr(fresh_status, 'poll'):
+						from platforms.mastodon.models import mastodon_status_to_universal
+						fresh_status = mastodon_status_to_universal(fresh_status)
+				if fresh_status and hasattr(fresh_status, 'poll') and fresh_status.poll:
+					status_to_check = fresh_status
+			except Exception as e:
+				# If refresh fails, continue with cached version
+				print(f"Failed to refresh poll status: {e}")
 			from . import poll_dialog
-			poll_dialog.show_poll_dialog(get_app().currentAccount, status_to_check)
+			poll_dialog.show_poll_dialog(account, status_to_check)
 
 	def OnViewPollResults(self, event=None):
 		"""View poll results from a poll ended notification."""

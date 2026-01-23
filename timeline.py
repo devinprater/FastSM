@@ -430,10 +430,21 @@ class timeline(object):
 			if filter_active:
 				from GUI.timeline_filter import should_show_status
 
+			# For notifications, check if we should filter out mentions from cache
+			filter_mentions_from_notifications = False
+			if self.type == "notifications":
+				include_mentions = getattr(self.account.prefs, 'mentions_in_notifications', False)
+				filter_mentions_from_notifications = not include_mentions
+
 			# Load items into timeline
 			for item in items:
 				if item is None:
 					continue
+				# Filter mentions from notifications cache if setting is disabled
+				if filter_mentions_from_notifications:
+					notif_type = getattr(item, 'type', None)
+					if notif_type == 'mention':
+						continue
 				# Track ID for O(1) duplicate checking
 				if hasattr(item, 'id'):
 					self._status_ids.add(str(item.id))
