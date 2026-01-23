@@ -1,6 +1,7 @@
 """Bluesky platform account implementation."""
 
 from typing import List, Optional, Any, Dict
+from datetime import datetime
 from atproto import Client
 from atproto.exceptions import AtProtocolError, InvokeTimeoutError
 
@@ -532,8 +533,24 @@ class BlueskyAccount(PlatformAccount):
                 if result:
                     return result
                 # If get_status failed but we got a response, create a minimal status
-                # to indicate success
-                return response
+                # This can happen due to indexing delay on Bluesky
+                # We need at least an 'id' for timeline deduplication
+                minimal_status = UniversalStatus(
+                    id=response.uri,
+                    content=text,
+                    text=text,
+                    created_at=datetime.now(),
+                    account=UniversalUser(
+                        id=str(self.me.did),
+                        username=self.me.handle,
+                        display_name=getattr(self.me, 'display_name', '') or self.me.handle,
+                        acct=self.me.handle,
+                    ),
+                    visibility='public',
+                    url=response.uri,
+                    _platform='bluesky',
+                )
+                return minimal_status
             # If no uri in response, still return response as success indicator
             return response if response else False
         except (AtProtocolError, InvokeTimeoutError) as e:

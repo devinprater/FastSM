@@ -4,6 +4,7 @@ FastSM Changelog
 0.4.1
 Reimplement VLC less intrusively this time.
 Unfortunately, I had to remove the timeline gaps feature. It was very broken. May revisit at some point.
+Add user aliases. Rename users' display names for quicker reading.
 Fix boosting/favoriting boost posts.
 Show view poll results on poll ended notifications.
 Properly clean up db when disabling caching and clearing cache.
@@ -21,6 +22,14 @@ Fix Bluesky posts showing blank - Posts with only external link embeds (no text)
 Fix URL ordering in Open URL dialog - Text/link URLs now appear before media attachment URLs
 Fix copy not including media descriptions - When copying directly (not through process_status)
 Fix some Mac related issues.
+Fix Mac crash after timeline load - streaming callbacks now properly use main thread for timeline modifications
+Fix bookmarks/favorites timelines not updating - additional safeguards to ensure since_id is never used
+Fixes for scheduled posts timeline.
+Fix direct message reply playing wrong sound - now correctly plays DM sound instead of reply sound
+Auto updater now shuts down cleanly, saving positions and cache before restarting
+Link previews now show URL when title and description are empty
+Fix Bluesky post dialog not closing - when post succeeds but fetch fails due to indexing delay, create minimal status for proper handling
+Fix Bluesky delete not working - now uses platform backend instead of Mastodon API
 
 0.4.0
 

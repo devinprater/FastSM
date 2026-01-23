@@ -446,7 +446,9 @@ class timeline(object):
 					self.statuses.append(item)
 
 			# Set up since_id for next refresh
-			if metadata.get('since_id') and items:
+			# Don't use since_id for timelines that use internal pagination IDs
+			# (favourites, bookmarks, scheduled use internal IDs, not status IDs)
+			if metadata.get('since_id') and items and self.type not in ('favourites', 'bookmarks', 'scheduled'):
 				self.update_kwargs['since_id'] = metadata['since_id']
 
 			# Clear any stale gaps from cache (gap detection is currently disabled)
@@ -1166,6 +1168,12 @@ class timeline(object):
 
 				# Check if we should use single API call on startup
 				single_on_startup = getattr(self.app.prefs, 'single_api_on_startup', False)
+
+				# Ensure since_id is never used for timelines with internal pagination
+				# (favourites, bookmarks, scheduled use internal IDs, not status IDs)
+				if self.type in ('favourites', 'bookmarks', 'scheduled'):
+					self.update_kwargs.pop('since_id', None)
+					self.prev_kwargs.pop('since_id', None)
 
 				if not back:
 					if self.initial and single_on_startup:

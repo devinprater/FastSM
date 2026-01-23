@@ -31,26 +31,33 @@ class MastodonStreamListener(StreamListener):
 			if not status:
 				return
 
-			# Add to home timeline
-			home_tl = self.account.get_timeline_by_type("home")
-			if home_tl:
-				home_tl.load(items=[status])
+			# Use wx.CallAfter for all timeline modifications (thread safety)
+			def do_update():
+				try:
+					# Add to home timeline
+					home_tl = self.account.get_timeline_by_type("home")
+					if home_tl:
+						home_tl.load(items=[status])
 
-			# Note: Mentions are handled by on_notification to avoid duplicates
+					# Note: Mentions are handled by on_notification to avoid duplicates
 
-			# Check if it's from us (add to Sent)
-			if str(status.account.id) == str(self.account.me.id):
-				for tl in self.account.timelines:
-					if tl.type == "user" and tl.name == "Sent":
-						tl.load(items=[status])
-						break
+					# Check if it's from us (add to Sent)
+					if str(status.account.id) == str(self.account.me.id):
+						for tl in self.account.timelines:
+							if tl.type == "user" and tl.name == "Sent":
+								tl.load(items=[status])
+								break
 
-			# Check user timelines
-			for tl in self.account.timelines:
-				if tl.type == "list" and str(status.account.id) in [str(m) for m in tl.members]:
-					tl.load(items=[status])
-				if tl.type == "user" and tl.user and str(status.account.id) == str(tl.user.id):
-					tl.load(items=[status])
+					# Check user timelines
+					for tl in self.account.timelines:
+						if tl.type == "list" and str(status.account.id) in [str(m) for m in tl.members]:
+							tl.load(items=[status])
+						if tl.type == "user" and tl.user and str(status.account.id) == str(tl.user.id):
+							tl.load(items=[status])
+				except Exception as e:
+					if not self._is_network_error(e):
+						self.account.app.handle_error(e, "Stream update (main thread)")
+			wx.CallAfter(do_update)
 		except Exception as e:
 			if not self._is_network_error(e):
 				self.account.app.handle_error(e, "Stream update")
@@ -61,31 +68,41 @@ class MastodonStreamListener(StreamListener):
 			# Check if mentions should be included in notifications
 			include_mentions = getattr(self.account.prefs, 'mentions_in_notifications', False)
 
-			# Add to notifications timeline (mentions only if setting enabled)
+			# Prepare data before CallAfter
+			uni_notif = None
 			if notification.type != "mention" or include_mentions:
 				uni_notif = mastodon_notification_to_universal(notification)
-				if uni_notif:
-					for tl in self.account.timelines:
-						if tl.type == "notifications":
-							tl.load(items=[uni_notif])
-							break
 
-			# Add mentions to mentions timeline as STATUS (not notification)
+			# Prepare mention status if applicable
+			mention_status = None
 			if notification.type == "mention" and hasattr(notification, 'status') and notification.status:
-				# Convert to universal status
-				status = mastodon_status_to_universal(notification.status)
-				if not status:
-					return
+				mention_status = mastodon_status_to_universal(notification.status)
+				if mention_status:
+					# Store original ID and set notification ID as primary for timeline tracking
+					mention_status._original_status_id = str(mention_status.id)
+					mention_status.id = str(notification.id)
+					mention_status._notification_id = str(notification.id)
 
-				# Store original ID and set notification ID as primary for timeline tracking
-				status._original_status_id = str(status.id)
-				status.id = str(notification.id)
-				status._notification_id = str(notification.id)
+			# Use wx.CallAfter for all timeline modifications (thread safety)
+			def do_notification():
+				try:
+					# Add to notifications timeline (mentions only if setting enabled)
+					if uni_notif:
+						for tl in self.account.timelines:
+							if tl.type == "notifications":
+								tl.load(items=[uni_notif])
+								break
 
-				for tl in self.account.timelines:
-					if tl.type == "mentions":
-						tl.load(items=[status])
-						break
+					# Add mentions to mentions timeline as STATUS (not notification)
+					if mention_status:
+						for tl in self.account.timelines:
+							if tl.type == "mentions":
+								tl.load(items=[mention_status])
+								break
+				except Exception as e:
+					if not self._is_network_error(e):
+						self.account.app.handle_error(e, "Stream notification (main thread)")
+			wx.CallAfter(do_notification)
 		except Exception as e:
 			if not self._is_network_error(e):
 				self.account.app.handle_error(e, "Stream notification")
@@ -93,10 +110,17 @@ class MastodonStreamListener(StreamListener):
 	def on_conversation(self, conversation):
 		"""Called when a direct message conversation is updated"""
 		try:
-			for tl in self.account.timelines:
-				if tl.type == "conversations":
-					tl.load(items=[conversation])
-					break
+			# Use wx.CallAfter for all timeline modifications (thread safety)
+			def do_conversation():
+				try:
+					for tl in self.account.timelines:
+						if tl.type == "conversations":
+							tl.load(items=[conversation])
+							break
+				except Exception as e:
+					if not self._is_network_error(e):
+						self.account.app.handle_error(e, "Stream conversation (main thread)")
+			wx.CallAfter(do_conversation)
 		except Exception as e:
 			if not self._is_network_error(e):
 				self.account.app.handle_error(e, "Stream conversation")
@@ -105,24 +129,31 @@ class MastodonStreamListener(StreamListener):
 		"""Called when a status is deleted"""
 		try:
 			status_id_str = str(status_id)
-			needs_refresh = False
-			for tl in self.account.timelines:
-				for i, status in enumerate(tl.statuses):
-					if hasattr(status, 'id') and str(status.id) == status_id_str:
-						# Adjust index if deleted item was at or before current position
-						if i < tl.index:
-							tl.index = max(0, tl.index - 1)
-						elif i == tl.index and tl.index >= len(tl.statuses) - 1:
-							# Deleted item was at current position and at end of list
-							tl.index = max(0, len(tl.statuses) - 2)
-						tl.statuses.pop(i)
-						tl._status_ids.discard(status_id_str)
-						tl.invalidate_display_cache()
-						if tl == self.account.currentTimeline and self.account == self.account.app.currentAccount:
-							needs_refresh = True
-						break
-			if needs_refresh:
-				wx.CallAfter(main.window.refreshList)
+			# Use wx.CallAfter for all timeline modifications (thread safety)
+			def do_delete():
+				try:
+					needs_refresh = False
+					for tl in self.account.timelines:
+						for i, status in enumerate(tl.statuses):
+							if hasattr(status, 'id') and str(status.id) == status_id_str:
+								# Adjust index if deleted item was at or before current position
+								if i < tl.index:
+									tl.index = max(0, tl.index - 1)
+								elif i == tl.index and tl.index >= len(tl.statuses) - 1:
+									# Deleted item was at current position and at end of list
+									tl.index = max(0, len(tl.statuses) - 2)
+								tl.statuses.pop(i)
+								tl._status_ids.discard(status_id_str)
+								tl.invalidate_display_cache()
+								if tl == self.account.currentTimeline and self.account == self.account.app.currentAccount:
+									needs_refresh = True
+								break
+					if needs_refresh:
+						main.window.refreshList()
+				except Exception as e:
+					if not self._is_network_error(e):
+						self.account.app.handle_error(e, "Stream delete (main thread)")
+			wx.CallAfter(do_delete)
 		except Exception as e:
 			if not self._is_network_error(e):
 				self.account.app.handle_error(e, "Stream delete")
@@ -130,22 +161,29 @@ class MastodonStreamListener(StreamListener):
 	def on_status_update(self, status):
 		"""Called when a status is edited"""
 		try:
-			# Convert to universal status
+			# Convert to universal status (safe to do in background thread)
 			uni_status = mastodon_status_to_universal(status)
 			if not uni_status:
 				return
 
-			needs_refresh = False
-			for tl in self.account.timelines:
-				for i, s in enumerate(tl.statuses):
-					if hasattr(s, 'id') and str(s.id) == str(uni_status.id):
-						tl.statuses[i] = uni_status
-						tl.invalidate_display_cache()
-						if tl == self.account.currentTimeline and self.account == self.account.app.currentAccount:
-							needs_refresh = True
-						break
-			if needs_refresh:
-				wx.CallAfter(main.window.refreshList)
+			# Use wx.CallAfter for all timeline modifications (thread safety)
+			def do_status_update():
+				try:
+					needs_refresh = False
+					for tl in self.account.timelines:
+						for i, s in enumerate(tl.statuses):
+							if hasattr(s, 'id') and str(s.id) == str(uni_status.id):
+								tl.statuses[i] = uni_status
+								tl.invalidate_display_cache()
+								if tl == self.account.currentTimeline and self.account == self.account.app.currentAccount:
+									needs_refresh = True
+								break
+					if needs_refresh:
+						main.window.refreshList()
+				except Exception as e:
+					if not self._is_network_error(e):
+						self.account.app.handle_error(e, "Stream status update (main thread)")
+			wx.CallAfter(do_status_update)
 		except Exception as e:
 			if not self._is_network_error(e):
 				self.account.app.handle_error(e, "Stream status update")

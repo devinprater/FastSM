@@ -559,13 +559,17 @@ class Application:
 			if card:
 				card_title = getattr(card, 'title', None) if not isinstance(card, dict) else card.get('title')
 				card_description = getattr(card, 'description', None) if not isinstance(card, dict) else card.get('description')
-				if card_title or card_description:
-					# Only add card info if there's something to show
+				card_url = getattr(card, 'url', None) if not isinstance(card, dict) else card.get('url')
+				# Show card if we have title, description, or at least the URL
+				if card_title or card_description or card_url:
 					card_parts = []
 					if card_title:
 						card_parts.append(card_title)
 					if card_description:
 						card_parts.append(card_description)
+					# If no title/description but we have URL, show the URL
+					if not card_parts and card_url:
+						card_parts.append(card_url)
 					card_text = " - ".join(card_parts)
 					# If text is empty, use card as main text; otherwise append
 					if not text.strip():
@@ -1719,9 +1723,10 @@ del "%~f0"
 					f.write(batch_content)
 
 				speak.speak("Update ready. FastSM will now restart.")
-				# Run the updater and exit
+				# Run the updater and exit cleanly (OnClose handles cleanup like saving positions)
 				os.startfile(batch_path)
-				wx.CallAfter(wx.Exit)
+				from GUI import main
+				wx.CallAfter(main.window.OnClose)
 
 			except Exception as e:
 				wx.CallAfter(close_progress_dialog)

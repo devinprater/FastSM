@@ -620,6 +620,9 @@ def delete(account, status):
 			# Use _scheduled_id if available (set by platform backend)
 			scheduled_id = getattr(status, '_scheduled_id', None) or status.id
 			account.api.scheduled_status_delete(id=scheduled_id)
+		elif hasattr(account, '_platform') and account._platform:
+			# Use platform backend for delete (supports Bluesky)
+			account._platform.delete_status(status.id)
 		else:
 			account.api.status_delete(id=status.id)
 		# Remove from all timelines by ID (not object identity)
