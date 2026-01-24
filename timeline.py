@@ -1094,6 +1094,16 @@ class timeline(object):
 
 		return (len(new_items), found_existing)
 
+	def _status_passes_filter(self, status):
+		"""Check if a status passes the current filter settings.
+
+		Returns True if the status should be shown, False if it should be filtered out.
+		"""
+		if not hasattr(self, '_filter_settings') or not self._filter_settings:
+			return True
+		from GUI.timeline_filter import should_show_status
+		return should_show_status(status, self._filter_settings, self.app, account=self.account)
+
 	def _add_status_at_position(self, status, position):
 		"""Add a status at a specific position in the statuses list.
 
