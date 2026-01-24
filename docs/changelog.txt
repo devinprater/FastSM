@@ -3,6 +3,8 @@ FastSM Changelog
 
 0.4.2
 Add ability to report users and posts (user viewer, post view, context menus, Actions menu)
+- Rule violations show server rules as checklist to select specific violations
+- Thread posts can be multi-selected to include in report (Mastodon)
 Disable VLC entirely on macOS - was causing crashes
 Fix Mac crash when timeline fails to load - GUI updates now thread-safe
 Fix Mac crash from speech in background threads - now routes to main thread
