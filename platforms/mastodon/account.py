@@ -1024,6 +1024,93 @@ class MastodonAccount(PlatformAccount):
         except MastodonError:
             return []
 
+    # ============ Instance Info Methods ============
+
+    def get_instance_info(self, instance_url: str = None) -> dict:
+        """Get information about an instance.
+
+        Args:
+            instance_url: URL of the instance to query. If None, uses the current instance.
+
+        Returns:
+            Dict with instance information including:
+            - domain, title, description, version
+            - contact info, rules, stats
+        """
+        try:
+            if instance_url:
+                # Get info for a remote instance
+                remote_api = self.get_or_create_remote_api(instance_url)
+                try:
+                    info = remote_api.instance_v2()
+                except:
+                    # Fall back to v1 for older instances
+                    info = remote_api.instance()
+            else:
+                # Get info for our own instance
+                try:
+                    info = self.api.instance_v2()
+                except:
+                    # Fall back to v1 for older instances
+                    info = self.api.instance()
+
+            # Normalize the response to a consistent dict format
+            result = {
+                'domain': getattr(info, 'domain', getattr(info, 'uri', '')),
+                'title': getattr(info, 'title', ''),
+                'description': getattr(info, 'description', ''),
+                'version': getattr(info, 'version', ''),
+                'source_url': getattr(info, 'source_url', ''),
+                'languages': getattr(info, 'languages', []),
+                'rules': [],
+                'contact_email': '',
+                'contact_account': None,
+                'stats': {},
+                'registrations': {},
+            }
+
+            # Handle rules
+            rules = getattr(info, 'rules', [])
+            for rule in rules:
+                rule_text = getattr(rule, 'text', str(rule))
+                if rule_text:
+                    result['rules'].append(rule_text)
+
+            # Handle contact info (v2 structure)
+            contact = getattr(info, 'contact', None)
+            if contact:
+                result['contact_email'] = getattr(contact, 'email', '')
+                result['contact_account'] = getattr(contact, 'account', None)
+            else:
+                # v1 structure
+                result['contact_email'] = getattr(info, 'email', '')
+                result['contact_account'] = getattr(info, 'contact_account', None)
+
+            # Handle usage stats (v2 structure)
+            usage = getattr(info, 'usage', None)
+            if usage:
+                users = getattr(usage, 'users', None)
+                if users:
+                    result['stats']['active_month'] = getattr(users, 'active_month', 0)
+            # v1 structure
+            stats = getattr(info, 'stats', None)
+            if stats:
+                result['stats']['user_count'] = getattr(stats, 'user_count', 0)
+                result['stats']['status_count'] = getattr(stats, 'status_count', 0)
+                result['stats']['domain_count'] = getattr(stats, 'domain_count', 0)
+
+            # Handle registrations (v2)
+            registrations = getattr(info, 'registrations', None)
+            if registrations:
+                result['registrations']['enabled'] = getattr(registrations, 'enabled', False)
+                result['registrations']['approval_required'] = getattr(registrations, 'approval_required', False)
+
+            return result
+        except MastodonError as e:
+            return {'error': str(e)}
+        except Exception as e:
+            return {'error': str(e)}
+
     # ============ Hashtag Methods ============
 
     def follow_hashtag(self, hashtag: str) -> bool:

@@ -166,6 +166,8 @@ class MainGui(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnUserSearch, m_user_search)
 		m_explore = menu3.Append(-1, "E&xplore\tCtrl+Shift+X", "explore")
 		self.Bind(wx.EVT_MENU, self.OnExplore, m_explore)
+		m_instance = menu3.Append(-1, "View &Instance\tAlt+I", "instance")
+		self.Bind(wx.EVT_MENU, self.OnViewInstance, m_instance)
 		m_find = menu3.Append(-1, "Find in timeline\tF3", "find")
 		self.Bind(wx.EVT_MENU, self.OnFind, m_find)
 		self.m_close_timeline = menu3.Append(-1, "Close timeline\tCtrl+W", "removetimeline")
@@ -1611,6 +1613,28 @@ class MainGui(wx.Frame):
 		"""Open the Explore/Discover dialog."""
 		e = explore_dialog.ExploreDialog(get_app().currentAccount)
 		e.Show()
+
+	def OnViewInstance(self, event=None):
+		"""View instance information.
+
+		If currently viewing a remote instance or remote user timeline,
+		shows info for that remote instance. Otherwise shows current instance.
+		"""
+		account = get_app().currentAccount
+		tl = account.currentTimeline
+
+		# Check if we're in a remote instance/user timeline
+		instance_url = None
+		if tl.type == 'instance':
+			# Instance timeline - the data contains the instance URL
+			instance_url = tl.data
+		elif tl.type == 'remote_user':
+			# Remote user timeline - extract instance from data
+			if isinstance(tl.data, dict):
+				instance_url = tl.data.get('instance_url')
+
+		from . import instance_viewer
+		instance_viewer.view_instance(account, instance_url)
 
 	def OnFind(self, event=None):
 		"""Find text in the current timeline."""
