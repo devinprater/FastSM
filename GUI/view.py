@@ -680,7 +680,7 @@ class UserViewGui(wx.Dialog):
 
 		display_name = getattr(user, 'display_name', '') or user.acct
 		location = ""  # Mastodon doesn't have location field
-		bio = self.account.app.strip_html(getattr(user, 'note', '') or '')
+		bio = self.account.app.html_to_text_for_edit(getattr(user, 'note', '') or '')
 		followers_count = getattr(user, 'followers_count', 0)
 		following_count = getattr(user, 'following_count', 0)
 		statuses_count = getattr(user, 'statuses_count', 0)
