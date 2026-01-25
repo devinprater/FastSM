@@ -276,6 +276,26 @@ class timeline(object):
 			return
 		speak.speak(pref + ", ".join(self.prepare(items)))
 
+	def _status_passes_server_filter(self, status):
+		"""Check if a status should be shown based on server-side filters.
+
+		Returns True if the status should be shown, False if it should be hidden.
+		Checks the 'filtered' attribute for any filters with filter_action='hide'.
+		"""
+		filtered = getattr(status, 'filtered', None)
+		if not filtered:
+			return True
+
+		# Check each filter result - if any has action="hide", hide the post
+		for result in filtered:
+			filter_obj = getattr(result, 'filter', None)
+			if filter_obj:
+				action = getattr(filter_obj, 'filter_action', 'warn')
+				if action == 'hide':
+					return False
+
+		return True
+
 	def _add_status_with_filter(self, status, to_front=False):
 		"""Add a status to the timeline, respecting any active filter.
 
@@ -292,6 +312,10 @@ class timeline(object):
 			# Always track ID for duplicate checking, even if filtered
 			if hasattr(status, 'id'):
 				self._status_ids.add(str(status.id))
+
+			# Check server-side filter action - hide posts completely if filter_action="hide"
+			if not self._status_passes_server_filter(status):
+				return False
 
 			# Always add to unfiltered list if it exists
 			if hasattr(self, '_unfiltered_statuses'):
@@ -445,6 +469,9 @@ class timeline(object):
 					notif_type = getattr(item, 'type', None)
 					if notif_type == 'mention':
 						continue
+				# Check server-side filter action - hide posts completely if filter_action="hide"
+				if not self._status_passes_server_filter(item):
+					continue
 				# Track ID for O(1) duplicate checking
 				if hasattr(item, 'id'):
 					self._status_ids.add(str(item.id))
@@ -1130,7 +1157,11 @@ class timeline(object):
 
 		Returns True if the status was shown (passed filter), False otherwise.
 		"""
-		# Apply filter if one is set
+		# Check server-side filter action - hide posts completely if filter_action="hide"
+		if not self._status_passes_server_filter(status):
+			return False
+
+		# Apply client-side filter if one is set
 		if hasattr(self, '_filter_settings') and self._filter_settings:
 			if not self._status_passes_filter(status):
 				# Still track in unfiltered list
