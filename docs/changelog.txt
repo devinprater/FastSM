@@ -21,6 +21,7 @@ Fix conversation timeline not focusing on source post when opened
 Use plaintext content from fediverse posts when available (Misskey, Iceshrimp, Akkoma, etc.)
 - Checks _misskey_content, source.content, and text fields before falling back to HTML stripping
 - Clear timeline cache to see improved formatting on existing posts
+Fix blank posts when plaintext fields exist but are empty/whitespace
 Fix user/sent timelines pulling old posts after refresh when pinned posts present
 Fix server-side filters with "hide" action showing posts as CW instead of hiding completely
 Improve user autocomplete - now works with word at cursor, no @ required

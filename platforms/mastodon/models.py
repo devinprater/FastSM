@@ -140,7 +140,7 @@ def mastodon_status_to_universal(status, platform_data=None) -> Optional[Univers
 
     # Check for Misskey plaintext
     misskey_content = get_attr(status, '_misskey_content', None)
-    if misskey_content:
+    if misskey_content and isinstance(misskey_content, str) and misskey_content.strip():
         text = misskey_content
 
     # Check for ActivityPub source property
@@ -150,12 +150,15 @@ def mastodon_status_to_universal(status, platform_data=None) -> Optional[Univers
             source_content = get_attr(source, 'content', None)
             source_mediatype = get_attr(source, 'mediaType', '')
             # Only use if it's plaintext (not markdown/bbcode which would need conversion)
-            if source_content and source_mediatype in ('text/plain', ''):
+            # and has actual content (not just whitespace)
+            if source_content and isinstance(source_content, str) and source_content.strip() and source_mediatype in ('text/plain', ''):
                 text = source_content
 
     # Check for Mastodon text field (deleted statuses)
     if not text:
-        text = get_attr(status, 'text', None)
+        mastodon_text = get_attr(status, 'text', None)
+        if mastodon_text and isinstance(mastodon_text, str) and mastodon_text.strip():
+            text = mastodon_text
 
     # Fallback: strip HTML from content
     if not text:
