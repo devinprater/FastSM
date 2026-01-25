@@ -21,6 +21,7 @@ Fix conversation timeline not focusing on source post when opened
 Use plaintext content from fediverse posts when available (Misskey, Iceshrimp, Akkoma, etc.)
 - Checks _misskey_content, source.content, and text fields before falling back to HTML stripping
 - Clear timeline cache to see improved formatting on existing posts
+Fix user/sent timelines pulling old posts after refresh when pinned posts present
 
 0.4.1
 Reimplement VLC less intrusively this time.

@@ -1350,10 +1350,27 @@ class timeline(object):
 					# Don't set since_id for timelines that use internal pagination IDs
 					# (favourites, bookmarks, scheduled use internal IDs, not status IDs)
 					if self.type not in ('favourites', 'bookmarks', 'scheduled'):
+						# Find the newest non-pinned post for since_id
+						# Pinned posts can be very old and would cause fetching tons of "new" posts
+						since_id_post = None
 						if not self.app.prefs.reversed:
-							self.update_kwargs['since_id'] = tl[0].id
+							# First item is newest - find first non-pinned
+							for post in tl:
+								if not getattr(post, 'pinned', False) and not getattr(post, '_pinned', False):
+									since_id_post = post
+									break
+							if not since_id_post and tl:
+								since_id_post = tl[0]  # Fallback if all pinned
 						else:
-							self.update_kwargs['since_id'] = tl[len(tl)-1].id
+							# Last item is newest - find last non-pinned
+							for post in reversed(tl):
+								if not getattr(post, 'pinned', False) and not getattr(post, '_pinned', False):
+									since_id_post = post
+									break
+							if not since_id_post and tl:
+								since_id_post = tl[-1]  # Fallback if all pinned
+						if since_id_post:
+							self.update_kwargs['since_id'] = since_id_post.id
 
 					# Update last load time
 					import time
