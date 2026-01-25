@@ -1020,8 +1020,6 @@ class timeline(object):
 			return (0, False)
 
 		if tl is None or len(tl) == 0:
-			if speech:
-				speak.speak("No more posts")
 			return (0, True)
 
 		# Process the fetched items
