@@ -130,7 +130,36 @@ def mastodon_status_to_universal(status, platform_data=None) -> Optional[Univers
         return getattr(obj, name, default)
 
     content = get_attr(status, 'content', '')
-    text = strip_html(content)
+
+    # Try to get plaintext from various sources before falling back to HTML stripping
+    # 1. Misskey/Iceshrimp: _misskey_content contains original plaintext/MFM
+    # 2. ActivityPub standard: source.content with source.mediaType
+    # 3. Mastodon: text field (only present on deleted statuses for redraft)
+    # 4. Fallback: strip HTML from content
+    text = None
+
+    # Check for Misskey plaintext
+    misskey_content = get_attr(status, '_misskey_content', None)
+    if misskey_content:
+        text = misskey_content
+
+    # Check for ActivityPub source property
+    if not text:
+        source = get_attr(status, 'source', None)
+        if source:
+            source_content = get_attr(source, 'content', None)
+            source_mediatype = get_attr(source, 'mediaType', '')
+            # Only use if it's plaintext (not markdown/bbcode which would need conversion)
+            if source_content and source_mediatype in ('text/plain', ''):
+                text = source_content
+
+    # Check for Mastodon text field (deleted statuses)
+    if not text:
+        text = get_attr(status, 'text', None)
+
+    # Fallback: strip HTML from content
+    if not text:
+        text = strip_html(content)
 
     # Convert account
     account = mastodon_user_to_universal(get_attr(status, 'account', None))

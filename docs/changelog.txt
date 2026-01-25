@@ -18,6 +18,9 @@ Fix Bluesky posts showing wrong time in Sent timeline - use UTC instead of local
 Fix YouTube playback on macOS - yt-dlp now detected without requiring VLC
 Fix Mac crash at startup - safe window Raise() calls and delayed update check
 Fix conversation timeline not focusing on source post when opened
+Use plaintext content from fediverse posts when available (Misskey, Iceshrimp, Akkoma, etc.)
+- Checks _misskey_content, source.content, and text fields before falling back to HTML stripping
+- Clear timeline cache to see improved formatting on existing posts
 
 0.4.1
 Reimplement VLC less intrusively this time.
