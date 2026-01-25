@@ -23,6 +23,7 @@ Use plaintext content from fediverse posts when available (Misskey, Iceshrimp, A
 - Clear timeline cache to see improved formatting on existing posts
 Fix user/sent timelines pulling old posts after refresh when pinned posts present
 Fix server-side filters with "hide" action showing posts as CW instead of hiding completely
+Improve user autocomplete - now works with word at cursor, no @ required
 
 0.4.1
 Reimplement VLC less intrusively this time.

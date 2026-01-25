@@ -426,18 +426,39 @@ class TweetGui(wx.Dialog):
 		event.Skip()
 
 	def Autocomplete(self, event):
+		# Get the text control and current content
 		if self.type == "message":
-			txt = self.text2.GetValue().split(" ")
+			text_ctrl = self.text2
 		else:
-			txt = self.text.GetValue().split(" ")
-		text = ""
-		for i in txt:
-			if (self.type != "message" and i.startswith("@") or self.type == "message") and self.account.app.lookup_user_name(self.account, i.strip("@"), False) == -1:
-				text = i.strip("@")
+			text_ctrl = self.text
 
-		if text == "":
-			speak.speak("No user to autocomplete")
+		full_text = text_ctrl.GetValue()
+		cursor_pos = text_ctrl.GetInsertionPoint()
+
+		# Find the word at or before the cursor position
+		# Look backwards from cursor to find word start
+		word_start = cursor_pos
+		while word_start > 0 and full_text[word_start - 1] not in ' \t\n\r':
+			word_start -= 1
+
+		# Look forwards from cursor to find word end
+		word_end = cursor_pos
+		while word_end < len(full_text) and full_text[word_end] not in ' \t\n\r':
+			word_end += 1
+
+		# Extract the word and strip @ if present
+		word = full_text[word_start:word_end]
+		has_at = word.startswith('@')
+		search_text = word.lstrip('@')
+
+		if not search_text:
+			speak.speak("No text to autocomplete. Type a username first.")
 			return
+
+		# Store for replacement later
+		self._autocomplete_start = word_start
+		self._autocomplete_end = word_end
+		self._autocomplete_had_at = has_at
 
 		# Collect matching users from cache and API
 		matches = []
@@ -449,7 +470,11 @@ class TweetGui(wx.Dialog):
 			for user in cache.get_all_users():
 				acct_lower = user.acct.lower()
 				display_name = getattr(user, 'display_name', '') or ''
-				if acct_lower.startswith(text.lower()) or display_name.lower().startswith(text.lower()):
+				# Match against username (with or without domain) and display name
+				username_part = acct_lower.split('@')[0] if '@' in acct_lower else acct_lower
+				if (acct_lower.startswith(search_text.lower()) or
+					username_part.startswith(search_text.lower()) or
+					display_name.lower().startswith(search_text.lower())):
 					if acct_lower not in seen_accts:
 						matches.append(user)
 						seen_accts.add(acct_lower)
@@ -457,7 +482,7 @@ class TweetGui(wx.Dialog):
 		# Also search the API for more suggestions (limit to keep it fast)
 		if len(matches) < 10:
 			try:
-				api_results = self.account.search_users(text, limit=10)
+				api_results = self.account.search_users(search_text, limit=10)
 				for user in api_results:
 					acct_lower = user.acct.lower()
 					if acct_lower not in seen_accts:
@@ -467,14 +492,37 @@ class TweetGui(wx.Dialog):
 				pass  # API search failed, just use cache results
 
 		if not matches:
-			speak.speak("No matching users found")
+			speak.speak("No matching users found for " + search_text)
 			return
 
 		self.menu = wx.Menu()
 		for user in matches[:15]:  # Limit to 15 results
 			display_name = getattr(user, 'display_name', '') or user.acct
-			self.create_menu_item(self.menu, display_name + " (@" + user.acct + ")", lambda event, orig=text, text=user.acct: self.OnUser(event, orig, text))
+			self.create_menu_item(self.menu, display_name + " (@" + user.acct + ")", lambda event, acct=user.acct: self.OnAutocompleteUser(event, acct))
 		self.PopupMenu(self.menu)
+
+	def OnAutocompleteUser(self, event, acct):
+		"""Handle autocomplete user selection."""
+		if self.type == "message":
+			text_ctrl = self.text2
+		else:
+			text_ctrl = self.text
+
+		full_text = text_ctrl.GetValue()
+
+		# Build replacement: add @ for non-message posts if not already present
+		if self.type == "message":
+			replacement = acct
+		else:
+			replacement = "@" + acct
+
+		# Replace the word with the selected username
+		new_text = full_text[:self._autocomplete_start] + replacement + full_text[self._autocomplete_end:]
+		text_ctrl.SetValue(new_text)
+
+		# Move cursor to after the inserted username
+		new_cursor = self._autocomplete_start + len(replacement)
+		text_ctrl.SetInsertionPoint(new_cursor)
 
 	def Newline(self, event):
 		if platform.system() == "Darwin":
@@ -488,15 +536,6 @@ class TweetGui(wx.Dialog):
 		self.Bind(wx.EVT_MENU, func, id=item.GetId())
 		menu.Append(item)
 		return item
-
-	def OnUser(self, event, orig, text):
-		if self.type != "message":
-			v = self.text.GetValue().replace(orig, text)
-			self.text.SetValue(v)
-			self.text.SetInsertionPoint(len(v))
-		else:
-			v = self.text2.GetValue().replace(orig, text)
-			self.text2.SetValue(v)
 
 	def next_thread(self):
 		self.text.SetValue("")
