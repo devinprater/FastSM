@@ -3,6 +3,7 @@
 from typing import List, Optional, Any, Dict
 from mastodon import Mastodon, MastodonError
 
+from version import APP_NAME, APP_VERSION
 from platforms.base import PlatformAccount
 from models import UniversalStatus, UniversalUser, UniversalNotification, UserCache
 from cache import TimelineCache
@@ -318,7 +319,7 @@ class MastodonAccount(PlatformAccount):
             return account.remote_apis[instance_url]
 
         # Create new unauthenticated client
-        remote_api = Mastodon(api_base_url=instance_url)
+        remote_api = Mastodon(api_base_url=instance_url, user_agent=f"{APP_NAME}/{APP_VERSION}")
         account.remote_apis[instance_url] = remote_api
         return remote_api
 

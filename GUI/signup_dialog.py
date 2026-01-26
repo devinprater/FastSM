@@ -6,6 +6,7 @@ import requests
 import speak
 from . import theme
 from application import get_app
+from version import APP_NAME, APP_VERSION
 
 
 class PlatformSignupDialog(wx.Dialog):
@@ -377,7 +378,8 @@ class MastodonSignupDialog(wx.Dialog):
 			api = Mastodon(
 				client_id=client_id,
 				client_secret=client_secret,
-				api_base_url=self.instance_url
+				api_base_url=self.instance_url,
+				user_agent=f"{APP_NAME}/{APP_VERSION}"
 			)
 
 			# If we have an invite code, we need to use direct API call

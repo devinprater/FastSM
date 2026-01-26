@@ -2,6 +2,7 @@ import datetime
 from mastodon import Mastodon, MastodonError
 import streaming
 import application
+from version import APP_NAME, APP_VERSION
 import threading
 from GUI import main, misc
 import config
@@ -160,7 +161,8 @@ class mastodon(object):
 				temp_api = Mastodon(
 					client_id=self.prefs.client_id,
 					client_secret=self.prefs.client_secret,
-					api_base_url=self.prefs.instance_url
+					api_base_url=self.prefs.instance_url,
+					user_agent=f"{APP_NAME}/{APP_VERSION}"
 				)
 				auth_url = temp_api.auth_request_url(
 					scopes=['read', 'write', 'follow', 'push'],
@@ -184,7 +186,8 @@ class mastodon(object):
 			client_id=self.prefs.client_id,
 			client_secret=self.prefs.client_secret,
 			access_token=self.prefs.access_token,
-			api_base_url=self.prefs.instance_url
+			api_base_url=self.prefs.instance_url,
+			user_agent=f"{APP_NAME}/{APP_VERSION}"
 		)
 
 		# Verify credentials and get user info
