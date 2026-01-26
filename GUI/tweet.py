@@ -343,13 +343,27 @@ class TweetGui(wx.Dialog):
 			dialog.Destroy()
 
 			# Ask for alt text - cancel here cancels the entire attachment
-			alt_dialog = wx.TextEntryDialog(self, "Enter alt text description (optional, press Cancel to cancel attachment):", "Alt Text", "")
+			alt_dialog = wx.Dialog(self, title="Alt Text", size=(400, 200))
+			panel = wx.Panel(alt_dialog)
+			sizer = wx.BoxSizer(wx.VERTICAL)
+			label = wx.StaticText(panel, label="Enter alt text description (optional):")
+			sizer.Add(label, 0, wx.ALL, 5)
+			alt_text_ctrl = wx.TextCtrl(panel, style=wx.TE_MULTILINE, size=(380, 100), name="Alt text")
+			sizer.Add(alt_text_ctrl, 1, wx.EXPAND | wx.ALL, 5)
+			btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+			ok_btn = wx.Button(panel, wx.ID_OK, "&OK")
+			cancel_btn = wx.Button(panel, wx.ID_CANCEL, "&Cancel")
+			btn_sizer.Add(ok_btn, 0, wx.ALL, 5)
+			btn_sizer.Add(cancel_btn, 0, wx.ALL, 5)
+			sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER)
+			panel.SetSizer(sizer)
+			alt_text_ctrl.SetFocus()
 			result = alt_dialog.ShowModal()
 			if result == wx.ID_CANCEL:
 				alt_dialog.Destroy()
 				speak.speak("Attachment cancelled")
 				return
-			alt_text = alt_dialog.GetValue()
+			alt_text = alt_text_ctrl.GetValue()
 			alt_dialog.Destroy()
 
 			# Add to list
