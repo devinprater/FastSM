@@ -460,19 +460,21 @@ class TweetGui(wx.Dialog):
 		while word_end < len(full_text) and full_text[word_end] not in ' \t\n\r':
 			word_end += 1
 
-		# Extract the word and strip @ if present
+		# Extract the word - must start with @ for autocomplete
 		word = full_text[word_start:word_end]
-		has_at = word.startswith('@')
-		search_text = word.lstrip('@')
+		if not word.startswith('@'):
+			speak.speak("Place cursor on a username starting with @ to autocomplete.")
+			return
+
+		search_text = word[1:]  # Remove the @
 
 		if not search_text:
-			speak.speak("No text to autocomplete. Type a username first.")
+			speak.speak("Type a username after @ to autocomplete.")
 			return
 
 		# Store for replacement later
 		self._autocomplete_start = word_start
 		self._autocomplete_end = word_end
-		self._autocomplete_had_at = has_at
 
 		# Collect matching users from cache and API
 		matches = []
@@ -524,17 +526,25 @@ class TweetGui(wx.Dialog):
 
 		full_text = text_ctrl.GetValue()
 
-		# Build replacement: add @ for non-message posts if not already present
+		# Build replacement: add @ for non-message posts
 		if self.type == "message":
 			replacement = acct
 		else:
 			replacement = "@" + acct
 
+		# Check if we need to add a space after (if next char isn't whitespace)
+		after_text = full_text[self._autocomplete_end:]
+		if after_text and after_text[0] not in ' \t\n\r':
+			replacement += " "
+		elif not after_text:
+			# At end of text, add space for convenience
+			replacement += " "
+
 		# Replace the word with the selected username
 		new_text = full_text[:self._autocomplete_start] + replacement + full_text[self._autocomplete_end:]
 		text_ctrl.SetValue(new_text)
 
-		# Move cursor to after the inserted username
+		# Move cursor to after the inserted username (and space)
 		new_cursor = self._autocomplete_start + len(replacement)
 		text_ctrl.SetInsertionPoint(new_cursor)
 
