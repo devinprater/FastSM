@@ -49,6 +49,7 @@ class mastodon(object):
 		self.stream_listener = None
 		self.stream_thread = None
 		self.stream = None
+		self._stream_started = False
 		# In portable mode, don't add FastSM prefix (userdata is already app-specific)
 		if config.is_portable_mode():
 			self.prefs = config.Config(name="account"+str(index), autosave=True)
@@ -183,6 +184,7 @@ class mastodon(object):
 				_exit_app()
 
 		# Initialize the API
+		from version import APP_NAME, APP_VERSION
 		self.api = Mastodon(
 			client_id=self.prefs.client_id,
 			client_secret=self.prefs.client_secret,
@@ -320,8 +322,12 @@ class mastodon(object):
 			except:
 				self.prefs.remote_user_timelines.remove(rut)
 
-		self.stream_listener = None
-		self.stream = None
+		# Only reset stream state if not already streaming
+		# (this can be called during re-init while stream is running)
+		if not (self.stream_thread is not None and self.stream_thread.is_alive()):
+			self.stream_listener = None
+			self.stream = None
+			self._stream_started = False
 		# Don't start streaming yet - wait for initial timeline loads to complete
 		# Streaming will be started by _check_initial_loads_complete()
 
@@ -437,6 +443,7 @@ class mastodon(object):
 		# No streaming for Bluesky
 		self.stream_listener = None
 		self.stream = None
+		self._stream_started = False
 
 		self._finish_timeline_init()
 
@@ -534,13 +541,15 @@ class mastodon(object):
 
 		# Use lock to prevent race condition where multiple threads try to start stream
 		with self._stream_lock:
-			# Check if stream is already running
+			# Check if stream is already running or starting
+			if hasattr(self, '_stream_started') and self._stream_started:
+				return
+
 			if self.stream_thread is not None and self.stream_thread.is_alive():
 				return  # Stream already running
 
-			# Only create new listener if we don't have one yet
-			if self.stream_listener is None:
-				self.stream_listener = streaming.MastodonStreamListener(self)
+			# Mark as started before creating thread
+			self._stream_started = True
 
 			self.stream_thread = threading.Thread(
 				target=self._run_stream,
@@ -554,9 +563,16 @@ class mastodon(object):
 			return
 
 		import time
+		import threading
+		import requests
+		import json
+		thread_id = threading.current_thread().ident
 		consecutive_errors = 0
 		base_delay = 5  # seconds
 		max_delay = 300  # 5 minutes max
+
+		# Create listener once
+		self.stream_listener = streaming.MastodonStreamListener(self)
 
 		while True:
 			try:
@@ -565,32 +581,103 @@ class mastodon(object):
 					time.sleep(5)
 					continue
 
-				self.stream = self.api.stream_user(self.stream_listener, run_async=False, reconnect_async=True)
-				# If stream exits normally, reset error count
-				consecutive_errors = 0
+				# Check if we're still the active stream thread
+				if self.stream_thread is None or self.stream_thread.ident != thread_id:
+					return
+
+				# Use our own SSE implementation instead of Mastodon.py's buggy one
+				stream_url = f"{self.prefs.instance_url}/api/v1/streaming/user"
+				headers = {
+					"Authorization": f"Bearer {self.prefs.access_token}",
+					"Accept": "text/event-stream",
+				}
+
+				with requests.get(stream_url, headers=headers, stream=True, timeout=300) as response:
+					response.raise_for_status()
+					consecutive_errors = 0  # Reset on successful connect
+
+					event_type = None
+					data_lines = []
+
+					for line in response.iter_lines():
+						# Check if we should stop
+						if self.stream_thread is None or self.stream_thread.ident != thread_id:
+							return
+
+						if line:
+							line = line.decode('utf-8')
+							if line.startswith('event:'):
+								event_type = line[6:].strip()
+							elif line.startswith('data:'):
+								data_lines.append(line[5:].strip())
+						else:
+							# Empty line = end of event
+							if event_type and data_lines:
+								data_str = '\n'.join(data_lines)
+								try:
+									data = json.loads(data_str)
+									self._handle_stream_event(event_type, data)
+								except json.JSONDecodeError:
+									pass  # Ignore malformed JSON
+							event_type = None
+							data_lines = []
+
+			except requests.exceptions.Timeout:
+				time.sleep(2)
+				continue
 			except Exception as e:
 				error_str = str(e).lower()
-				# Don't count transient errors toward consecutive errors
-				# These can happen during reconnection or network issues
+
 				transient_errors = [
-					"missing field", "malformedeventerror", "handle_stream",
 					"connection", "timeout", "reset", "refused", "unreachable",
 					"network", "socket", "eof", "broken pipe", "ssl", "certificate"
 				]
 				if any(err in error_str for err in transient_errors):
-					# Brief pause then retry without counting as real error
 					time.sleep(2)
 					continue
 
 				consecutive_errors += 1
-				# Only announce errors after several consecutive failures to avoid spam
 				if consecutive_errors >= 5:
 					speak.speak("Stream connection lost")
-					consecutive_errors = 0  # Reset to avoid repeated announcements
+					consecutive_errors = 0
 
-				# Exponential backoff with cap
 				delay = min(base_delay * (2 ** (consecutive_errors - 1)), max_delay)
 				time.sleep(delay)
+
+	def _handle_stream_event(self, event_type, data):
+		"""Handle a streaming event by dispatching to the listener."""
+		# Guard: check listener exists
+		if self.stream_listener is None:
+			return
+
+		from mastodon import AttribAccessDict
+
+		def convert_to_attrib_dict(obj):
+			"""Recursively convert dicts to AttribAccessDict for attribute access."""
+			if isinstance(obj, dict):
+				converted = {k: convert_to_attrib_dict(v) for k, v in obj.items()}
+				return AttribAccessDict(**converted)
+			elif isinstance(obj, list):
+				return [convert_to_attrib_dict(item) for item in obj]
+			return obj
+
+		try:
+			if event_type == 'update':
+				status = convert_to_attrib_dict(data)
+				self.stream_listener.on_update(status)
+			elif event_type == 'notification':
+				notification = convert_to_attrib_dict(data)
+				self.stream_listener.on_notification(notification)
+			elif event_type == 'delete':
+				self.stream_listener.on_delete(data)
+			elif event_type == 'status.update':
+				status = convert_to_attrib_dict(data)
+				self.stream_listener.on_status_update(status)
+			elif event_type == 'conversation':
+				conversation = convert_to_attrib_dict(data)
+				self.stream_listener.on_conversation(conversation)
+		except Exception:
+			pass  # Silently ignore stream handler errors
 
 	def followers(self, id):
 		# Use platform backend if available
