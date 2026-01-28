@@ -1864,6 +1864,8 @@ class MainGui(wx.Frame):
 						rut for rut in get_app().currentAccount.prefs.remote_user_timelines
 						if not (rut.get('url') == inst_url and rut.get('username') == username and rut.get('filter') == tl_filter)
 					]
+				# Stop streaming for this timeline
+				tl.stop_stream()
 				# Clear cached data for this timeline
 				try:
 					tl.clear_cache()

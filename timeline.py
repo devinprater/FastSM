@@ -50,6 +50,10 @@ class timeline(object):
 		self._gaps = []
 		self._last_load_time = None  # Timestamp of last successful load (for gap detection)
 		self._gap_idle_threshold = 600  # Seconds of idle time before gap detection triggers (10 minutes)
+		# Per-timeline streaming support
+		self._stream_thread = None
+		self._stream_started = False
+		self._stream_lock = threading.Lock()
 
 		for i in self.app.timeline_settings:
 			if i.account_id == self.account.me.id and i.tl == self.name:
@@ -266,6 +270,194 @@ class timeline(object):
 		if hasattr(result, 'statuses'):
 			return result.statuses
 		return result.get('statuses', [])
+
+	@property
+	def supports_streaming(self):
+		"""Check if this timeline type supports streaming."""
+		# Only Mastodon supports streaming
+		if getattr(self.account.prefs, 'platform_type', '') == 'bluesky':
+			return False
+		# Streamable timeline types
+		if self.type in ('list', 'local', 'federated', 'instance'):
+			return True
+		# Search timelines with hashtag queries can stream
+		if self.type == 'search' and self.data and str(self.data).startswith('#'):
+			return True
+		return False
+
+	@property
+	def stream_endpoint(self):
+		"""Get the streaming endpoint URL for this timeline."""
+		if not self.supports_streaming:
+			return None
+		base_url = self.account.prefs.instance_url
+		if self.type == 'list':
+			return f"{base_url}/api/v1/streaming/list?list={self.data}"
+		elif self.type == 'local':
+			return f"{base_url}/api/v1/streaming/public/local"
+		elif self.type == 'federated':
+			return f"{base_url}/api/v1/streaming/public"
+		elif self.type == 'instance':
+			# Remote instance local timeline - connect to that instance's public/local stream
+			# self.data contains the remote instance URL
+			remote_url = self.data.rstrip('/')
+			return f"{remote_url}/api/v1/streaming/public/local"
+		elif self.type == 'search' and self.data and str(self.data).startswith('#'):
+			# Hashtag search - stream the hashtag
+			tag = str(self.data).lstrip('#')
+			return f"{base_url}/api/v1/streaming/hashtag?tag={tag}"
+		return None
+
+	def start_stream(self):
+		"""Start streaming for this timeline if supported."""
+		if not self.supports_streaming:
+			return
+		if not self.app.prefs.streaming:
+			return
+
+		with self._stream_lock:
+			if self._stream_started:
+				return
+			if self._stream_thread is not None and self._stream_thread.is_alive():
+				return
+
+			self._stream_started = True
+			self._stream_thread = threading.Thread(
+				target=self._run_stream,
+				daemon=True
+			)
+			self._stream_thread.start()
+
+	def stop_stream(self):
+		"""Stop streaming for this timeline."""
+		with self._stream_lock:
+			self._stream_started = False
+			# Thread will exit on next iteration when it checks _stream_started
+
+	def _run_stream(self):
+		"""Run the streaming connection for this timeline."""
+		import requests
+		import json
+		from mastodon import AttribAccessDict
+		from platforms.mastodon.models import mastodon_status_to_universal
+
+		thread_id = threading.current_thread().ident
+		consecutive_errors = 0
+		base_delay = 5
+		max_delay = 300
+
+		def convert_to_attrib_dict(obj):
+			"""Recursively convert dicts to AttribAccessDict for attribute access."""
+			if isinstance(obj, dict):
+				converted = {k: convert_to_attrib_dict(v) for k, v in obj.items()}
+				return AttribAccessDict(**converted)
+			elif isinstance(obj, list):
+				return [convert_to_attrib_dict(item) for item in obj]
+			return obj
+
+		while self._stream_started:
+			try:
+				# Check if we're still the active stream thread
+				if self._stream_thread is None or self._stream_thread.ident != thread_id:
+					return
+
+				stream_url = self.stream_endpoint
+				if not stream_url:
+					return
+
+				# Only list timelines require authentication
+				# Public streams (local, federated, hashtag, instance) don't need auth
+				headers = {
+					"Accept": "text/event-stream",
+				}
+				if self.type == 'list':
+					headers["Authorization"] = f"Bearer {self.account.prefs.access_token}"
+
+				with requests.get(stream_url, headers=headers, stream=True, timeout=300) as response:
+					response.raise_for_status()
+					consecutive_errors = 0
+
+					event_type = None
+					data_lines = []
+
+					for line in response.iter_lines():
+						if not self._stream_started:
+							return
+						if self._stream_thread is None or self._stream_thread.ident != thread_id:
+							return
+
+						if line:
+							line = line.decode('utf-8')
+							if line.startswith('event:'):
+								event_type = line[6:].strip()
+							elif line.startswith('data:'):
+								data_lines.append(line[5:].strip())
+						else:
+							# Empty line = end of event
+							if event_type and data_lines:
+								data_str = '\n'.join(data_lines)
+								try:
+									data = json.loads(data_str)
+									self._handle_stream_event(event_type, data, convert_to_attrib_dict)
+								except json.JSONDecodeError:
+									pass
+							event_type = None
+							data_lines = []
+
+			except requests.exceptions.Timeout:
+				time.sleep(2)
+				continue
+			except Exception:
+				consecutive_errors += 1
+				if consecutive_errors >= 10:
+					# Too many errors, give up
+					self._stream_started = False
+					return
+				delay = min(base_delay * (2 ** (consecutive_errors - 1)), max_delay)
+				time.sleep(delay)
+
+	def _handle_stream_event(self, event_type, data, convert_func):
+		"""Handle a streaming event for this timeline."""
+		import wx
+		from platforms.mastodon.models import mastodon_status_to_universal
+
+		try:
+			if event_type == 'update':
+				status = convert_func(data)
+				uni_status = mastodon_status_to_universal(status)
+				if uni_status:
+					wx.CallAfter(lambda s=uni_status: self.load(items=[s]))
+			elif event_type == 'delete':
+				status_id = str(data)
+				def do_delete():
+					for i, s in enumerate(self.statuses):
+						if hasattr(s, 'id') and str(s.id) == status_id:
+							if i < self.index:
+								self.index = max(0, self.index - 1)
+							elif i == self.index and self.index >= len(self.statuses) - 1:
+								self.index = max(0, len(self.statuses) - 2)
+							self.statuses.pop(i)
+							self._status_ids.discard(status_id)
+							self.invalidate_display_cache()
+							if self == self.account.currentTimeline and self.account == self.app.currentAccount:
+								main.window.refreshList()
+							break
+				wx.CallAfter(do_delete)
+			elif event_type == 'status.update':
+				status = convert_func(data)
+				uni_status = mastodon_status_to_universal(status)
+				if uni_status:
+					def do_update():
+						for i, s in enumerate(self.statuses):
+							if hasattr(s, 'id') and str(s.id) == str(uni_status.id):
+								self.statuses[i] = uni_status
+								self.invalidate_display_cache()
+								if self == self.account.currentTimeline and self.account == self.app.currentAccount:
+									main.window.refreshList()
+								break
+					wx.CallAfter(do_update)
+		except Exception:
+			pass  # Silently ignore stream handler errors
 
 	def read_items(self, items):
 		pref = ""
@@ -522,6 +714,9 @@ class timeline(object):
 			if hasattr(self.account, '_on_timeline_initial_load_complete'):
 				self.account._on_timeline_initial_load_complete()
 
+			# Start streaming for this timeline if supported
+			self.start_stream()
+
 			# Play ready sound if this is the last timeline
 			if self.account.timelines and self == self.account.timelines[-1] and not self.account.ready:
 				self.account.ready = True
@@ -691,6 +886,8 @@ class timeline(object):
 			self.initial = False
 			if hasattr(self.account, '_on_timeline_initial_load_complete'):
 				self.account._on_timeline_initial_load_complete()
+			# Start streaming for this timeline if supported
+			self.start_stream()
 
 	def play(self, items=None):
 		if self.type == "user":
@@ -851,6 +1048,8 @@ class timeline(object):
 				self.initial = False
 				if hasattr(self.account, '_on_timeline_initial_load_complete'):
 					self.account._on_timeline_initial_load_complete()
+				# Start streaming for this timeline if supported (even if hidden, stream may be useful)
+				self.start_stream()
 			return False
 		# Prevent concurrent load operations (but allow streaming items to pass through)
 		if items == [] and self._loading:
@@ -1268,6 +1467,8 @@ class timeline(object):
 					self.initial = False
 					if hasattr(self.account, '_on_timeline_initial_load_complete'):
 						self.account._on_timeline_initial_load_complete()
+					# Start streaming for this timeline if supported
+					self.start_stream()
 				if self.removable:
 					if self.type == "user":
 						# Handle both string and dict data for user timelines
@@ -1298,6 +1499,8 @@ class timeline(object):
 							item for item in self.account.prefs.remote_user_timelines
 							if not (item.get('url') == inst_url and item.get('username') == username and item.get('filter') == tl_filter)
 						]
+					# Stop streaming before removing timeline
+					self.stop_stream()
 					self.account.timelines.remove(self)
 					if self.account == self.app.currentAccount:
 						# Use wx.CallAfter for thread safety (this runs in background thread)
@@ -1460,6 +1663,8 @@ class timeline(object):
 				# Notify account that this timeline's initial load is complete
 				if hasattr(self.account, '_on_timeline_initial_load_complete'):
 					self.account._on_timeline_initial_load_complete()
+				# Start streaming for this timeline if supported
+				self.start_stream()
 			else:
 				# On refresh: if user hasn't moved, check if server marker changed
 				# This handles the case where another client updated the position
