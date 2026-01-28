@@ -65,6 +65,10 @@ class ViewGui(wx.Dialog):
 		wx.Dialog.__init__(self, None, title=title, size=(350, 200))
 
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
+		# Register with main window for focus restoration
+		from . import main
+		if hasattr(main, 'window') and main.window:
+			main.window.register_dialog(self)
 		self.panel = wx.Panel(self)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 
@@ -375,6 +379,9 @@ class ViewGui(wx.Dialog):
 		misc.report_status(self.account, self.status, self)
 
 	def OnClose(self, event):
+		from . import main
+		if hasattr(main, 'window') and main.window:
+			main.window.unregister_dialog(self)
 		self.Destroy()
 
 
@@ -386,6 +393,10 @@ class UserViewGui(wx.Dialog):
 		self.users = users
 		wx.Dialog.__init__(self, None, title=title, size=(350, 200))
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
+		# Register with main window for focus restoration
+		from . import main
+		if hasattr(main, 'window') and main.window:
+			main.window.register_dialog(self)
 		self.panel = wx.Panel(self)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 		self.list_label = wx.StaticText(self.panel, -1, label="&Users")
@@ -879,6 +890,9 @@ class UserViewGui(wx.Dialog):
 
 	def OnClose(self, event):
 		"""App close event handler"""
+		from . import main
+		if hasattr(main, 'window') and main.window:
+			main.window.unregister_dialog(self)
 		self.Destroy()
 
 

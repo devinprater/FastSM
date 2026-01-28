@@ -36,6 +36,10 @@ class TweetGui(wx.Dialog):
 
 		wx.Dialog.__init__(self, None, title=type, size=(350,200), style=wx.DEFAULT_DIALOG_STYLE | wx.TAB_TRAVERSAL)
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
+		# Register with main window for focus restoration
+		from . import main
+		if hasattr(main, 'window') and main.window:
+			main.window.register_dialog(self)
 		self.panel = wx.Panel(self, style=wx.TAB_TRAVERSAL)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 		self.text_label = wx.StaticText(self.panel, -1, "Te&xt")
@@ -838,9 +842,12 @@ class TweetGui(wx.Dialog):
 				self.poll.Enable(True)
 
 	def OnClose(self, event):
+		# Unregister from main window focus tracking
+		from . import main
+		if hasattr(main, 'window') and main.window:
+			main.window.unregister_dialog(self)
 		# On Mac, explicitly reactivate main window to fix menu state
 		if platform.system() == "Darwin":
-			from . import main
 			def safe_raise():
 				try:
 					if main.window:

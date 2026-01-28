@@ -17,6 +17,7 @@ class MainGui(wx.Frame):
 	def __init__(self, title):
 		self.invisible=False
 		self._find_text = ""  # Current search text for find in timeline
+		self._open_dialogs = []  # Track open dialogs for focus restoration
 		wx.Frame.__init__(self, None, title=title,size=(800,600))
 		self.Center()
 		if platform.system()!="Darwin":
@@ -26,6 +27,7 @@ class MainGui(wx.Frame):
 		self.handler.register_key("alt+win+shift+q",self.OnClose)
 		self.handler.register_key("control+win+shift+a",self.OnAudioPlayer)
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
+		self.Bind(wx.EVT_ACTIVATE, self.OnActivate)
 		self.panel = wx.Panel(self)
 		self.main_box = wx.BoxSizer(wx.VERTICAL)
 		self.menuBar = wx.MenuBar()
@@ -558,6 +560,30 @@ class MainGui(wx.Frame):
 				self.on_list_change(None)
 				self.list2.SetSelection(get_app().currentAccount.currentTimeline.index)
 				self.on_list2_change(None)
+
+	def OnActivate(self, event):
+		"""Handle main window activation - restore focus to open dialogs."""
+		if event.GetActive():
+			# When main window is activated, check for open dialogs and raise them
+			# Clean up any closed dialogs first
+			self._open_dialogs = [d for d in self._open_dialogs if d and d.IsShown()]
+			# Raise any open dialogs
+			for dialog in self._open_dialogs:
+				try:
+					dialog.Raise()
+				except:
+					pass
+		event.Skip()
+
+	def register_dialog(self, dialog):
+		"""Register a dialog to be tracked for focus restoration."""
+		if dialog not in self._open_dialogs:
+			self._open_dialogs.append(dialog)
+
+	def unregister_dialog(self, dialog):
+		"""Unregister a dialog from focus tracking."""
+		if dialog in self._open_dialogs:
+			self._open_dialogs.remove(dialog)
 
 	def OnReadme(self,event=None):
 		webbrowser.open("https://github.com/masonasons/FastSM/blob/master/docs/FastSM.md")
