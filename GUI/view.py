@@ -1,6 +1,7 @@
 import requests
 import platform
 from application import get_app
+from version import APP_NAME, APP_VERSION
 from . import misc, theme
 import wx
 import sound
@@ -1197,7 +1198,7 @@ class ViewImageGui(wx.Dialog):
 
 		try:
 			# Download image
-			response = requests.get(url, timeout=30)
+			response = requests.get(url, headers={"User-Agent": f"{APP_NAME}/{APP_VERSION}"}, timeout=30)
 			response.raise_for_status()
 
 			# Load with PIL (supports many formats including WebP)

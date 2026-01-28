@@ -1476,7 +1476,7 @@ class Application:
 
 		try:
 			# Use /releases endpoint since /releases/latest doesn't include prereleases
-			releases = json.loads(requests.get("https://api.github.com/repos/masonasons/FastSM/releases", headers={"accept": "application/vnd.github.v3+json"}).content.decode())
+			releases = json.loads(requests.get("https://api.github.com/repos/masonasons/FastSM/releases", headers={"accept": "application/vnd.github.v3+json", "User-Agent": f"{name}/{version}"}).content.decode())
 			if not releases:
 				if not silent:
 					self.alert("No releases found.", "Update Check")
@@ -1626,7 +1626,7 @@ class Application:
 		local_filename = url.split('/')[-1]
 		if platform.system() == "Darwin":
 			local_filename = os.path.expanduser("~/Downloads/" + local_filename)
-		with requests.get(url, stream=True) as r:
+		with requests.get(url, stream=True, headers={"User-Agent": f"{name}/{version}"}) as r:
 			r.raise_for_status()
 			with open(local_filename, 'wb') as f:
 				for chunk in r.iter_content(chunk_size=8192):
@@ -1825,7 +1825,7 @@ del "%~f0"
 			dest_path: Local path to save file
 			progress_callback: Optional function(downloaded, total) called periodically
 		"""
-		with requests.get(url, stream=True, timeout=30) as r:
+		with requests.get(url, stream=True, timeout=30, headers={"User-Agent": f"{name}/{version}"}) as r:
 			r.raise_for_status()
 			total_size = int(r.headers.get('content-length', 0))
 			downloaded = 0

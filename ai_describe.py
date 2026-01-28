@@ -3,6 +3,7 @@
 import base64
 import requests
 from application import get_app
+from version import APP_NAME, APP_VERSION
 
 
 def get_image_description(image_url):
@@ -37,7 +38,8 @@ def _describe_with_openai(image_url, prompt, api_key, model):
 	try:
 		headers = {
 			"Authorization": f"Bearer {api_key}",
-			"Content-Type": "application/json"
+			"Content-Type": "application/json",
+			"User-Agent": f"{APP_NAME}/{APP_VERSION}"
 		}
 
 		payload = {
@@ -88,7 +90,7 @@ def _describe_with_gemini(image_url, prompt, api_key, model):
 
 	try:
 		# First, download the image and convert to base64
-		img_response = requests.get(image_url, timeout=30)
+		img_response = requests.get(image_url, headers={"User-Agent": f"{APP_NAME}/{APP_VERSION}"}, timeout=30)
 		img_response.raise_for_status()
 		image_data = base64.b64encode(img_response.content).decode('utf-8')
 
@@ -119,6 +121,7 @@ def _describe_with_gemini(image_url, prompt, api_key, model):
 		response = requests.post(
 			url,
 			json=payload,
+			headers={"User-Agent": f"{APP_NAME}/{APP_VERSION}"},
 			timeout=60
 		)
 

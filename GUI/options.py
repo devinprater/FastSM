@@ -4,6 +4,7 @@ import os, sys
 import wx
 from . import main, theme
 from application import get_app
+from version import APP_NAME, APP_VERSION
 
 class general(wx.Panel, wx.Dialog):
 	def __init__(self, parent):
@@ -384,7 +385,8 @@ class youtube_tab(wx.Panel, wx.Dialog):
 			try:
 				# Get latest release URL from GitHub API
 				api_url = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
-				response = requests.get(api_url, timeout=30)
+				headers = {"User-Agent": f"{APP_NAME}/{APP_VERSION}"}
+				response = requests.get(api_url, headers=headers, timeout=30)
 				response.raise_for_status()
 				release = response.json()
 
@@ -400,7 +402,7 @@ class youtube_tab(wx.Panel, wx.Dialog):
 					return
 
 				# Download the executable
-				exe_response = requests.get(exe_url, timeout=120, stream=True)
+				exe_response = requests.get(exe_url, headers=headers, timeout=120, stream=True)
 				exe_response.raise_for_status()
 
 				# Ensure config directory exists
@@ -486,7 +488,8 @@ class youtube_tab(wx.Panel, wx.Dialog):
 
 				# Download the zip file
 				vlc_url = "https://masonasons.me/vlc.zip"
-				response = requests.get(vlc_url, timeout=120, stream=True)
+				headers = {"User-Agent": f"{APP_NAME}/{APP_VERSION}"}
+				response = requests.get(vlc_url, headers=headers, timeout=120, stream=True)
 				response.raise_for_status()
 
 				# Extract to app folder
