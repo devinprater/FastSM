@@ -811,7 +811,7 @@ class TweetGui(wx.Dialog):
 			if self.visibility is not None and self.visibility.GetSelection() == 3:
 				snd = "send_message"
 			else:
-				snd = "send_tweet"
+				snd = "send_post"
 		if status:
 			sound.play(self.account, snd)
 			# Check if this was a scheduled post (only for non-message types)
