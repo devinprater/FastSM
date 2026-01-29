@@ -60,7 +60,12 @@ class AccountsGui(wx.Dialog):
 
 	def New(self, event):
 		app = get_app()
+		num_accounts_before = len(app.accounts)
 		app.add_session()
+		# Check if a new account was actually added
+		if len(app.accounts) <= num_accounts_before:
+			# Account creation was cancelled or failed
+			return
 		app.prefs.accounts+=1
 		app.currentAccount=app.accounts[len(app.accounts)-1]
 		main.window.refreshTimelines()
