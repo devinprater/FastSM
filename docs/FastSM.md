@@ -195,8 +195,6 @@ FastSM uses a template system to customize how posts are displayed. Template var
 | $text$ | Content of the associated post (if any) |
 | $created_at$ | Timestamp of the notification |
 
-**Note:** If your template doesn't include `$text$` or `$created_at$`, they will be automatically appended for backward compatibility.
-
 ## Options
 
 FastSM has two options dialogs: Global Options (for app-wide settings) and Account Options (for per-account settings).

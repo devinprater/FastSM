@@ -132,7 +132,7 @@ class Application:
 		self.prefs.copyTemplate = self.prefs.get("copyTemplate", "$account.display_name$ (@$account.acct$): $text$")
 		self.prefs.boostTemplate = self.prefs.get("boostTemplate", "$account.display_name$ boosted $reblog.account.display_name$: $text$ $created_at$")
 		self.prefs.quoteTemplate = self.prefs.get("quoteTemplate", "Quoting $account.display_name$ (@$account.acct$): $text$")
-		self.prefs.notificationTemplate = self.prefs.get("notificationTemplate", "$account.display_name$ (@$account.acct$) $type$")
+		self.prefs.notificationTemplate = self.prefs.get("notificationTemplate", "$account.display_name$ (@$account.acct$) $type$: $text$ $created_at$")
 		self.prefs.messageTemplate = self.prefs.get("messageTemplate", "$account.display_name$: $text$ $created_at$")
 		self.prefs.userTemplate = self.prefs.get("userTemplate", "$display_name$ (@$acct$): $followers_count$ followers, $following_count$ following, $statuses_count$ posts. Bio: $note$")
 		self.prefs.accounts = self.prefs.get("accounts", 1)
@@ -831,20 +831,7 @@ class Application:
 		wrapped = NotificationWrapper(n, type_label=label, text=status_text)
 
 		# Use notification template
-		template = self.prefs.notificationTemplate
-		result = self.template_to_string(wrapped, template, account=account)
-
-		# If template doesn't explicitly include $text$ but we have status text, append it
-		# This maintains backward compatibility with the default template
-		if "$text$" not in template and status_text:
-			result += ": " + status_text
-
-		# If template doesn't explicitly include $created_at$, append timestamp
-		# This maintains backward compatibility
-		if "$created_at$" not in template:
-			created_at = getattr(n, 'created_at', None)
-			if created_at:
-				result += " " + self.parse_date(created_at)
+		result = self.template_to_string(wrapped, self.prefs.notificationTemplate, account=account)
 
 		return result
 
