@@ -107,6 +107,16 @@ class invisible_interface(object):
 				# Fall back to URL-based media detection
 				elif len(sound.get_media_urls(get_app().find_urls_in_status(item))) > 0:
 					sound.play(get_app().currentAccount, "media")
+			# Check if post mentions the current user
+			if item and get_app().prefs.earcon_mention:
+				status_to_check = item.reblog if hasattr(item, 'reblog') and item.reblog else item
+				mentions = getattr(status_to_check, 'mentions', []) or []
+				my_id = str(get_app().currentAccount.me.id)
+				for mention in mentions:
+					mention_id = str(getattr(mention, 'id', ''))
+					if mention_id == my_id:
+						sound.play(get_app().currentAccount, "mention")
+						break
 		self.speak_item()
 
 	def speak_item(self):

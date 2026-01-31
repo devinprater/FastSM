@@ -171,6 +171,7 @@ class Application:
 		self.prefs.load_all_previous = self.prefs.get("load_all_previous", False)  # Keep loading previous until timeline is fully loaded
 		self.prefs.earcon_audio = self.prefs.get("earcon_audio", True)
 		self.prefs.earcon_top = self.prefs.get("earcon_top", False)
+		self.prefs.earcon_mention = self.prefs.get("earcon_mention", True)
 		self.prefs.wrap = self.prefs.get("wrap", False)
 		# Content warning handling: 'hide' = show CW only, 'show' = show CW + text, 'ignore' = show text only
 		self.prefs.cw_mode = self.prefs.get("cw_mode", "hide")

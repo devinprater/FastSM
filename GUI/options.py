@@ -219,6 +219,9 @@ class audio_tab(wx.Panel, wx.Dialog):
 		self.earcon_top=wx.CheckBox(self, -1, "Play a sound when you navigate to a timeline that may have new items")
 		self.main_box.Add(self.earcon_top, 0, wx.ALL, 10)
 		self.earcon_top.SetValue(get_app().prefs.earcon_top)
+		self.earcon_mention=wx.CheckBox(self, -1, "Play a sound when a post mentions you")
+		self.main_box.Add(self.earcon_mention, 0, wx.ALL, 10)
+		self.earcon_mention.SetValue(get_app().prefs.earcon_mention)
 		self.errors=wx.CheckBox(self, -1, "Play sound and speak message for errors")
 		self.main_box.Add(self.errors, 0, wx.ALL, 10)
 		self.errors.SetValue(get_app().prefs.errors)
@@ -846,6 +849,7 @@ class OptionsGui(wx.Dialog):
 		get_app().prefs.dark_mode = dark_mode_values[self.advanced.dark_mode.GetSelection()]
 		get_app().prefs.earcon_audio=self.audio_tab.earcon_audio.GetValue()
 		get_app().prefs.earcon_top=self.audio_tab.earcon_top.GetValue()
+		get_app().prefs.earcon_mention=self.audio_tab.earcon_mention.GetValue()
 		get_app().prefs.wrap=self.general.wrap.GetValue()
 		get_app().prefs.update_time=int(self.advanced.update_time.GetValue())
 		if get_app().prefs.update_time<1:
