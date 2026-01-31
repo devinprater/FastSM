@@ -1184,6 +1184,7 @@ class NotificationViewGui(wx.Dialog):
 		if notif_account:
 			try:
 				self.account.api.follow_request_reject(id=notif_account.id)
+				sound.play(self.account, "unfollow")
 				speak.speak("Follow request rejected")
 			except Exception as error:
 				self.account.app.handle_error(error, "reject follow request")

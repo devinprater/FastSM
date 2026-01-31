@@ -1917,7 +1917,7 @@ class MainGui(wx.Frame):
 			if hasattr(account, 'accept_follow_request'):
 				account.accept_follow_request(user.id)
 				speak.speak(f"Accepted follow request from {user.acct}")
-				sound.play(account, "like")
+				sound.play(account, "follow")
 			else:
 				speak.speak("This platform does not support follow requests")
 		except Exception as error:
@@ -1938,6 +1938,7 @@ class MainGui(wx.Frame):
 			if hasattr(account, 'reject_follow_request'):
 				account.reject_follow_request(user.id)
 				speak.speak(f"Rejected follow request from {user.acct}")
+				sound.play(account, "unfollow")
 			else:
 				speak.speak("This platform does not support follow requests")
 		except Exception as error:
