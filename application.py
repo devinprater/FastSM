@@ -1730,12 +1730,16 @@ class Application:
 				batch_path = os.path.join(app_dir, "updater.bat")
 				exe_name = "FastSM.exe" if getattr(sys, 'frozen', False) else "python.exe"
 
+				# Escape apostrophes in paths for PowerShell single-quoted strings (double them)
+				ps_zip_path = final_zip_path.replace("'", "''")
+				ps_extract_dir = extract_dir.replace("'", "''")
+
 				batch_content = f'''@echo off
 echo Waiting for FastSM to close...
 timeout /t 2 /nobreak >nul
 
 echo Extracting update...
-powershell -Command "Expand-Archive -Path '{final_zip_path}' -DestinationPath '{extract_dir}' -Force"
+powershell -Command "Expand-Archive -Path '{ps_zip_path}' -DestinationPath '{ps_extract_dir}' -Force"
 
 echo Installing update...
 rem The zip contains a FastSM folder inside, so copy from there
