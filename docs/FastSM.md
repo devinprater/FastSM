@@ -189,9 +189,13 @@ FastSM uses a template system to customize how posts are displayed. Template var
 
 | Variable | Description |
 |----------|-------------|
-| $type$ | Notification type (follow, favourite, reblog, mention, etc.) |
-| $account.display_name$ | Display name of the user |
+| $type$ | Human-readable notification type (e.g., "followed you", "favourited your post", "mentioned you") |
+| $account.display_name$ | Display name of the user who triggered the notification |
 | $account.acct$ | @handle of the user |
+| $text$ | Content of the associated post (if any) |
+| $created_at$ | Timestamp of the notification |
+
+**Note:** If your template doesn't include `$text$` or `$created_at$`, they will be automatically appended for backward compatibility.
 
 ## Options
 

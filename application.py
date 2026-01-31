@@ -44,6 +44,24 @@ class StatusWrapper:
 		return hasattr(self._status, name)
 
 
+class NotificationWrapper:
+	"""Wrapper class to add type label and text to notification objects for templating"""
+	def __init__(self, notification, type_label="", text=""):
+		self._notification = notification
+		self.type = type_label  # Human-readable type label like "followed you"
+		self.text = text  # Status text if notification has associated status
+
+	def __getattr__(self, name):
+		if name in ('_notification', 'type', 'text'):
+			return object.__getattribute__(self, name)
+		return getattr(self._notification, name)
+
+	def __hasattr__(self, name):
+		if name in ('_notification', 'type', 'text'):
+			return True
+		return hasattr(self._notification, name)
+
+
 class dict_obj:
 	def __init__(self, dict1):
 		self.__dict__.update(dict1)
@@ -741,8 +759,7 @@ class Application:
 		return result
 
 	def process_notification(self, n, account=None):
-		"""Process a Mastodon notification for display"""
-		import speak
+		"""Process a Mastodon notification for display using notification template"""
 		type_labels = {
 			'follow': 'followed you',
 			'favourite': 'favourited your post',
@@ -758,23 +775,13 @@ class Application:
 		}
 
 		notif_type = getattr(n, 'type', 'unknown')
-		notif_account = getattr(n, 'account', None)
 		status = getattr(n, 'status', None)
 
+		# Get human-readable type label
 		label = type_labels.get(notif_type, notif_type)
 
-		if notif_account:
-			# Check for alias (only applies in list display)
-			user_id = str(getattr(notif_account, 'id', ''))
-			if account and user_id and user_id in account.prefs.aliases:
-				display_name = account.prefs.aliases[user_id]
-			else:
-				display_name = getattr(notif_account, 'display_name', '') or getattr(notif_account, 'acct', '')
-			acct = getattr(notif_account, 'acct', '')
-		else:
-			display_name = "Unknown"
-			acct = ""
-
+		# Build status text if notification has an associated status
+		status_text = ""
 		if status:
 			# Use text field if available, otherwise strip HTML from content
 			status_text = getattr(status, 'text', '') or self.strip_html(getattr(status, 'content', ''))
@@ -819,13 +826,25 @@ class Application:
 						option_texts.append(opt_title)
 				poll_label = "Poll ended" if is_expired else "Poll"
 				status_text += f" ({poll_label}: {', '.join(option_texts)})"
-			result = f"{display_name} (@{acct}) {label}: {status_text}"
-		else:
-			result = f"{display_name} (@{acct}) {label}"
 
-		created_at = getattr(n, 'created_at', None)
-		if created_at:
-			result += " " + self.parse_date(created_at)
+		# Wrap notification with type label and text for templating
+		wrapped = NotificationWrapper(n, type_label=label, text=status_text)
+
+		# Use notification template
+		template = self.prefs.notificationTemplate
+		result = self.template_to_string(wrapped, template, account=account)
+
+		# If template doesn't explicitly include $text$ but we have status text, append it
+		# This maintains backward compatibility with the default template
+		if "$text$" not in template and status_text:
+			result += ": " + status_text
+
+		# If template doesn't explicitly include $created_at$, append timestamp
+		# This maintains backward compatibility
+		if "$created_at$" not in template:
+			created_at = getattr(n, 'created_at', None)
+			if created_at:
+				result += " " + self.parse_date(created_at)
 
 		return result
 
