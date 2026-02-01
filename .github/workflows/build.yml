@@ -30,19 +30,48 @@ jobs:
       - name: Build executable
         run: python build.py
 
-      - name: Find build artifact
+      - name: Get version
+        id: version
+        run: |
+          $version = python -c "from version import APP_VERSION; print(APP_VERSION)"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+        shell: pwsh
+
+      - name: Build installer
+        run: |
+          $env:PATH = "C:\Program Files (x86)\Inno Setup 6;$env:PATH"
+          $distPath = "$env:USERPROFILE\app_dist\FastSM\dist\FastSM"
+          $outputPath = "$env:USERPROFILE\app_dist\FastSM"
+          iscc /DMyAppVersion=${{ steps.version.outputs.version }} /DSourceDir="$distPath" /DOutputDir="$outputPath" installer.iss
+        shell: pwsh
+
+      - name: Find build artifacts
         id: artifact
         run: |
           $zip = Get-ChildItem -Path . -Filter "FastSM-*-Windows.zip" | Select-Object -First 1
-          echo "path=$($zip.FullName)" >> $env:GITHUB_OUTPUT
-          echo "name=$($zip.Name)" >> $env:GITHUB_OUTPUT
+          $installer = Get-ChildItem -Path "$env:USERPROFILE\app_dist\FastSM" -Filter "FastSM-*-Setup.exe" | Select-Object -First 1
+          echo "zip_path=$($zip.FullName)" >> $env:GITHUB_OUTPUT
+          echo "zip_name=$($zip.Name)" >> $env:GITHUB_OUTPUT
+          echo "installer_path=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          echo "installer_name=$($installer.Name)" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
-      - name: Upload Windows artifact
+      - name: Upload Windows zip artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-build
-          path: ${{ steps.artifact.outputs.path }}
+          name: windows-zip
+          path: ${{ steps.artifact.outputs.zip_path }}
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: ${{ steps.artifact.outputs.installer_path }}
 
   build-macos:
     runs-on: macos-latest
@@ -92,10 +121,16 @@ jobs:
           version=$(python -c "from version import APP_VERSION; print(APP_VERSION)")
           echo "version=$version" >> $GITHUB_OUTPUT
 
-      - name: Download Windows artifact
+      - name: Download Windows zip artifact
         uses: actions/download-artifact@v4
         with:
-          name: windows-build
+          name: windows-zip
+          path: artifacts/
+
+      - name: Download Windows installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
           path: artifacts/
 
       - name: Download macOS artifact
@@ -127,7 +162,8 @@ jobs:
             This release is automatically updated on every commit to master.
 
             ## Downloads
-            - **Windows:** FastSM-${{ steps.version.outputs.version }}-Windows.zip
+            - **Windows Installer:** FastSM-${{ steps.version.outputs.version }}-Setup.exe (Recommended)
+            - **Windows Portable:** FastSM-${{ steps.version.outputs.version }}-Windows.zip
             - **macOS:** FastSM-${{ steps.version.outputs.version }}.dmg
           files: artifacts/*
           prerelease: true
