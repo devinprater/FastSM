@@ -1497,6 +1497,38 @@ class Application:
 					pass
 		return None
 
+	def _is_installed(self):
+		"""Check if the app was installed via installer (vs portable/zip).
+
+		Returns True if installed via Inno Setup installer, False if portable.
+		Detection is based on registry entries created by Inno Setup.
+		"""
+		if platform.system() != "Windows":
+			return False
+
+		try:
+			import winreg
+			# Inno Setup AppId from installer.iss (without curly braces for registry key)
+			app_id = "7E8F4A2B-3C5D-4E6F-8A9B-1C2D3E4F5A6B"
+			uninstall_key = f"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{{app_id}}}_is1"
+
+			# Check HKLM first (admin install), then HKCU (user install)
+			for hive in [winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER]:
+				try:
+					key = winreg.OpenKey(hive, uninstall_key, 0, winreg.KEY_READ)
+					winreg.CloseKey(key)
+					return True
+				except FileNotFoundError:
+					continue
+				except Exception:
+					continue
+		except ImportError:
+			pass
+		except Exception:
+			pass
+
+		return False
+
 	def cfu(self, silent=True):
 		# Don't run auto-updater when running from source
 		if not getattr(sys, 'frozen', False):
@@ -1557,14 +1589,34 @@ class Application:
 				# Use thread-safe dialog since cfu runs in background thread
 				ud = self.question_from_thread("Update available: " + latest_version, message)
 				if ud == 1:
+					# Check if app is installed (vs portable) to choose update method
+					is_installed = self._is_installed()
+
 					for asset in latest['assets']:
 						asset_name = asset['name'].lower()
-						if platform.system() == "Windows" and 'windows' in asset_name and asset_name.endswith('.zip'):
-							threading.Thread(target=self.download_update, args=[asset['browser_download_url'],], daemon=True).start()
-							return
+						if platform.system() == "Windows":
+							# If installed, prefer the installer; if portable, prefer the zip
+							if is_installed and 'setup' in asset_name and asset_name.endswith('.exe'):
+								threading.Thread(target=self.download_update, args=[asset['browser_download_url'], True], daemon=True).start()
+								return
+							elif not is_installed and 'windows' in asset_name and asset_name.endswith('.zip'):
+								threading.Thread(target=self.download_update, args=[asset['browser_download_url'], False], daemon=True).start()
+								return
 						elif platform.system() == "Darwin" and asset_name.endswith('.dmg'):
-							threading.Thread(target=self.download_update, args=[asset['browser_download_url'],], daemon=True).start()
+							threading.Thread(target=self.download_update, args=[asset['browser_download_url'], False], daemon=True).start()
 							return
+
+					# Fallback: if preferred format not found, try the other one
+					for asset in latest['assets']:
+						asset_name = asset['name'].lower()
+						if platform.system() == "Windows":
+							if 'setup' in asset_name and asset_name.endswith('.exe'):
+								threading.Thread(target=self.download_update, args=[asset['browser_download_url'], True], daemon=True).start()
+								return
+							elif 'windows' in asset_name and asset_name.endswith('.zip'):
+								threading.Thread(target=self.download_update, args=[asset['browser_download_url'], False], daemon=True).start()
+								return
+
 					self.alert_from_thread("A download for this version could not be found for your platform. Check back soon.", "Error")
 			else:
 				if not silent:
@@ -1663,13 +1715,18 @@ class Application:
 					f.write(chunk)
 		return local_filename
 
-	def download_update(self, url):
+	def download_update(self, url, use_installer=False):
 		import speak
 		import shutil
 
 		# Use a temp directory for download to avoid I/O contention with app directory
 		import tempfile
 		temp_dir = tempfile.gettempdir()
+
+		if platform.system() == "Windows" and use_installer:
+			# Installer-based update (for installed versions)
+			self._download_installer_update(url, temp_dir)
+			return
 
 		if platform.system() == "Windows":
 			# Get app directory
@@ -1852,6 +1909,92 @@ del "%~f0"
 				wx.CallAfter(close_progress_dialog)
 				speak.speak(f"Download failed: {e}")
 				self.alert_from_thread(f"Failed to download update: {e}", "Download Error")
+
+	def _download_installer_update(self, url, temp_dir):
+		"""Download and run installer for installed versions of the app."""
+		import speak
+
+		installer_path = os.path.join(temp_dir, "FastSM-Setup.exe")
+
+		# Create and show progress dialog from main thread
+		progress_data = {'dialog': None, 'cancelled': False}
+
+		def create_progress_dialog():
+			progress_data['dialog'] = wx.ProgressDialog(
+				"Downloading Update",
+				"Downloading FastSM installer...",
+				maximum=100,
+				style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE | wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME
+			)
+			progress_data['dialog'].Raise()
+
+		def update_progress(downloaded, total):
+			if progress_data['dialog'] and total > 0:
+				percent = int((downloaded / total) * 100)
+				mb_downloaded = downloaded / (1024 * 1024)
+				mb_total = total / (1024 * 1024)
+				def do_update():
+					if progress_data['dialog']:
+						cont, _ = progress_data['dialog'].Update(
+							percent,
+							f"Downloading: {mb_downloaded:.1f} MB / {mb_total:.1f} MB"
+						)
+						if not cont:
+							progress_data['cancelled'] = True
+				wx.CallAfter(do_update)
+
+		def close_progress_dialog():
+			if progress_data['dialog']:
+				progress_data['dialog'].Destroy()
+				progress_data['dialog'] = None
+
+		# Create dialog on main thread and wait
+		event = threading.Event()
+		def create_and_signal():
+			create_progress_dialog()
+			event.set()
+		wx.CallAfter(create_and_signal)
+		event.wait()
+
+		try:
+			# Remove old installer if it exists
+			if os.path.exists(installer_path):
+				os.remove(installer_path)
+
+			# Download the installer
+			self.download_file_to(url, installer_path, progress_callback=update_progress)
+
+			if progress_data['cancelled']:
+				wx.CallAfter(close_progress_dialog)
+				speak.speak("Download cancelled.")
+				if os.path.exists(installer_path):
+					os.remove(installer_path)
+				return
+
+			wx.CallAfter(close_progress_dialog)
+			speak.speak("Download complete. Running installer...")
+
+			# Run the installer silently and close the app
+			# /SILENT shows progress but no user interaction
+			# /VERYSILENT shows nothing at all
+			# /CLOSEAPPLICATIONS closes the running app automatically
+			# /RESTARTAPPLICATIONS restarts after install
+			import subprocess
+			subprocess.Popen([
+				installer_path,
+				'/SILENT',
+				'/CLOSEAPPLICATIONS',
+				'/RESTARTAPPLICATIONS'
+			], creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0)
+
+			# Close the app to allow installer to update files
+			from GUI import main
+			wx.CallAfter(main.window.OnClose)
+
+		except Exception as e:
+			wx.CallAfter(close_progress_dialog)
+			speak.speak(f"Update failed: {e}")
+			self.alert_from_thread(f"Failed to download or run installer: {e}", "Update Error")
 
 	def download_file_to(self, url, dest_path, progress_callback=None):
 		"""Download a file to a specific path with optional progress callback.
