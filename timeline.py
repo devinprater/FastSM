@@ -1419,10 +1419,15 @@ class timeline(object):
 			if back:
 				# Conversation threads don't support loading previous
 				return False
-			# Refresh the conversation thread
+			# Refresh the conversation thread - preserve position
+			old_index = self.index
+			old_count = len(self.statuses)
 			self.statuses = []
 			self._status_ids = set()
 			self.load_conversation()
+			# Restore position (clamped to new length)
+			if self.statuses:
+				self.index = min(old_index, len(self.statuses) - 1)
 			if speech:
 				speak.speak("Refreshed")
 			return True
