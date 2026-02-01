@@ -296,7 +296,7 @@ def create_windows_zip(output_dir: Path, app_dir: Path) -> Path:
     """Create a zip file of the Windows build for distribution."""
     import zipfile
 
-    zip_name = f"{APP_NAME}Portable.zip"
+    zip_name = f"{APP_NAME}-Windows-Portable.zip"
     zip_path = output_dir / zip_name
 
     if zip_path.exists():
