@@ -53,7 +53,7 @@ jobs:
       - name: Find build artifacts
         id: artifact
         run: |
-          $zip = Get-ChildItem -Path . -Filter "FastSM-*-Windows.zip" | Select-Object -First 1
+          $zip = Get-ChildItem -Path . -Filter "FastSMPortable.zip" | Select-Object -First 1
           $installer = Get-ChildItem -Path "$env:USERPROFILE\app_dist\FastSM" -Filter "FastSMInstaller.exe" | Select-Object -First 1
           echo "zip_path=$($zip.FullName)" >> $env:GITHUB_OUTPUT
           echo "zip_name=$($zip.Name)" >> $env:GITHUB_OUTPUT
@@ -163,7 +163,7 @@ jobs:
 
             ## Downloads
             - **Windows Installer:** FastSMInstaller.exe (Recommended)
-            - **Windows Portable:** FastSM-${{ steps.version.outputs.version }}-Windows.zip
+            - **Windows Portable:** FastSMPortable.zip
             - **macOS:** FastSM-${{ steps.version.outputs.version }}.dmg
           files: artifacts/*
           prerelease: true

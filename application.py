@@ -1599,7 +1599,7 @@ class Application:
 							if is_installed and 'installer' in asset_name and asset_name.endswith('.exe'):
 								threading.Thread(target=self.download_update, args=[asset['browser_download_url'], True], daemon=True).start()
 								return
-							elif not is_installed and 'windows' in asset_name and asset_name.endswith('.zip'):
+							elif not is_installed and 'portable' in asset_name and asset_name.endswith('.zip'):
 								threading.Thread(target=self.download_update, args=[asset['browser_download_url'], False], daemon=True).start()
 								return
 						elif platform.system() == "Darwin" and asset_name.endswith('.dmg'):
@@ -1613,7 +1613,7 @@ class Application:
 							if 'installer' in asset_name and asset_name.endswith('.exe'):
 								threading.Thread(target=self.download_update, args=[asset['browser_download_url'], True], daemon=True).start()
 								return
-							elif 'windows' in asset_name and asset_name.endswith('.zip'):
+							elif 'portable' in asset_name and asset_name.endswith('.zip'):
 								threading.Thread(target=self.download_update, args=[asset['browser_download_url'], False], daemon=True).start()
 								return
 
