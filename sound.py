@@ -154,6 +154,7 @@ handles = []  # List of active sound handles for concurrent playback
 player = None  # Media player for URL streams (VLC or sound_lib)
 player_type = None  # 'vlc' or 'soundlib' to track which player is active
 vlc_instance = None  # VLC instance (reused for efficiency)
+_play_in_progress = False  # Flag to prevent multiple concurrent play attempts
 
 def get_output_devices():
 	"""Get list of available audio output devices.
@@ -486,39 +487,75 @@ def play(account, filename, pack="", wait=False):
 		pass
 
 def play_url(url, vlc_only=False):
-	global player, player_type, vlc_instance
+	global player, player_type, vlc_instance, _play_in_progress
 	from application import get_app
 
-	# Stop any existing playback
-	stop()
+	# Prevent multiple concurrent play attempts
+	if _play_in_progress:
+		speak.speak("Already loading audio")
+		return
+	_play_in_progress = True
 
-	# Try VLC first if available
-	if VLC_AVAILABLE:
+	try:
+		# Stop any existing playback
+		stop()
+
+		# Try VLC first if available
+		if VLC_AVAILABLE:
+			try:
+				# Create VLC instance if needed
+				if vlc_instance is None:
+					# Use --quiet like TWBlue does, add network caching for streams
+					# --no-video disables video output (prevents DirectX window from appearing)
+					# --vout=dummy is a fallback to ensure no video window
+					vlc_args = ['--quiet', '--network-caching=1000', '--no-video', '--vout=dummy']
+					# If using bundled VLC, set paths
+					if _vlc_path:
+						vlc_args.append(f'--data-path={_vlc_path}')
+					vlc_instance = vlc.Instance(' '.join(vlc_args))
+					vlc_instance.log_unset()
+
+				# Extract actual stream URL for YouTube and similar services
+				stream_url = _extract_stream_url(url)
+
+				# Create media player
+				player = vlc_instance.media_player_new()
+				media = vlc_instance.media_new(stream_url)
+				player.set_media(media)
+				# Apply media volume from preferences (VLC uses 0-100)
+				volume = int(getattr(get_app().prefs, 'media_volume', 1.0) * 100)
+				player.audio_set_volume(volume)
+				player.play()
+				player_type = 'vlc'
+				# Auto-open audio player if setting enabled
+				if getattr(get_app().prefs, 'auto_open_audio_player', False):
+					try:
+						from GUI import audio_player
+						audio_player.auto_show_audio_player()
+					except:
+						pass
+				return
+			except Exception as e:
+				# VLC failed, fall through to sound_lib (unless vlc_only)
+				if vlc_only:
+					speak.speak(f"VLC failed to play: {e}")
+					return
+
+		# If this URL requires VLC and VLC isn't available, inform user
+		if vlc_only and not VLC_AVAILABLE:
+			speak.speak("This URL requires VLC media player which is not available.")
+			return
+
+		# Fall back to sound_lib
+		# Extract actual stream URL for YouTube and similar services
+		stream_url = _extract_stream_url(url)
+
 		try:
-			# Create VLC instance if needed
-			if vlc_instance is None:
-				# Use --quiet like TWBlue does, add network caching for streams
-				# --no-video disables video output (prevents DirectX window from appearing)
-				# --vout=dummy is a fallback to ensure no video window
-				vlc_args = ['--quiet', '--network-caching=1000', '--no-video', '--vout=dummy']
-				# If using bundled VLC, set paths
-				if _vlc_path:
-					vlc_args.append(f'--data-path={_vlc_path}')
-				vlc_instance = vlc.Instance(' '.join(vlc_args))
-				vlc_instance.log_unset()
-
-			# Extract actual stream URL for YouTube and similar services
-			stream_url = _extract_stream_url(url)
-
-			# Create media player
-			player = vlc_instance.media_player_new()
-			media = vlc_instance.media_new(stream_url)
-			player.set_media(media)
-			# Apply media volume from preferences (VLC uses 0-100)
-			volume = int(getattr(get_app().prefs, 'media_volume', 1.0) * 100)
-			player.audio_set_volume(volume)
+			player = stream.URLStream(url=stream_url)
+			# Apply media volume from preferences
+			player.volume = getattr(get_app().prefs, 'media_volume', 1.0)
 			player.play()
-			player_type = 'vlc'
+			player_type = 'soundlib'
 			# Auto-open audio player if setting enabled
 			if getattr(get_app().prefs, 'auto_open_audio_player', False):
 				try:
@@ -526,37 +563,10 @@ def play_url(url, vlc_only=False):
 					audio_player.auto_show_audio_player()
 				except:
 					pass
-			return
 		except Exception as e:
-			# VLC failed, fall through to sound_lib (unless vlc_only)
-			if vlc_only:
-				speak.speak(f"VLC failed to play: {e}")
-				return
-
-	# If this URL requires VLC and VLC isn't available, inform user
-	if vlc_only and not VLC_AVAILABLE:
-		speak.speak("This URL requires VLC media player which is not available.")
-		return
-
-	# Fall back to sound_lib
-	# Extract actual stream URL for YouTube and similar services
-	stream_url = _extract_stream_url(url)
-
-	try:
-		player = stream.URLStream(url=stream_url)
-		# Apply media volume from preferences
-		player.volume = getattr(get_app().prefs, 'media_volume', 1.0)
-		player.play()
-		player_type = 'soundlib'
-		# Auto-open audio player if setting enabled
-		if getattr(get_app().prefs, 'auto_open_audio_player', False):
-			try:
-				from GUI import audio_player
-				audio_player.auto_show_audio_player()
-			except:
-				pass
-	except Exception as e:
-		speak.speak(f"Could not play audio: {e}")
+			speak.speak(f"Could not play audio: {e}")
+	finally:
+		_play_in_progress = False
 
 def stop():
 	"""Stop media player (URL streams)."""
