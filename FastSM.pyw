@@ -76,17 +76,33 @@ if platform.system() != "Darwin" and _has_bluesky_accounts():
 import application
 from application import get_app
 import os
-# On Windows, redirect stderr to errors.log in the app's directory (not cwd)
-if platform.system()!="Darwin":
-	# Handle both frozen (compiled) and source runs
-	if getattr(sys, 'frozen', False):
-		# Running as compiled executable
-		app_dir = os.path.dirname(sys.executable)
-	else:
-		# Running from source
-		app_dir = os.path.dirname(os.path.abspath(__file__))
-	f=open(os.path.join(app_dir, "errors.log"), "a")
-	sys.stderr=f
+# Redirect stderr to errors.log in config directory (not app directory)
+# This is important for installed versions where app directory may be write-protected
+if platform.system() != "Darwin":
+	def _get_config_dir():
+		"""Get the config directory for error logging."""
+		# Check for portable mode (userdata folder next to executable or in cwd)
+		if getattr(sys, 'frozen', False):
+			exe_dir = os.path.dirname(sys.executable)
+			userdata_path = os.path.join(exe_dir, "userdata")
+			if os.path.isdir(userdata_path):
+				return userdata_path
+		else:
+			# Running from source - check cwd
+			userdata_path = os.path.join(os.getcwd(), "userdata")
+			if os.path.isdir(userdata_path):
+				return userdata_path
+		# Standard config location
+		return os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "FastSM")
+
+	try:
+		config_dir = _get_config_dir()
+		if not os.path.exists(config_dir):
+			os.makedirs(config_dir)
+		f = open(os.path.join(config_dir, "errors.log"), "a")
+		sys.stderr = f
+	except Exception:
+		pass  # If we can't set up logging, continue anyway
 import shutil
 if os.path.exists(os.path.expandvars(r"%temp%\gen_py")):
 	shutil.rmtree(os.path.expandvars(r"%temp%\gen_py"))
