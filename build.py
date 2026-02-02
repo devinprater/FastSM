@@ -261,6 +261,11 @@ def build_windows(script_dir: Path, output_dir: Path) -> tuple:
     cmd.extend(["--collect-submodules", "enchant"])
     cmd.extend(["--collect-data", "enchant"])
 
+    # Add runtime hook to redirect stderr to config directory early
+    runtime_hook = script_dir / "runtime_hook.py"
+    if runtime_hook.exists():
+        cmd.extend(["--runtime-hook", str(runtime_hook)])
+
     # Add main script
     cmd.append(str(main_script))
 
